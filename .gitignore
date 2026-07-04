@@ -1,0 +1,12 @@
+data/*
+!data/.gitkeep
+logs/*
+!logs/.gitkeep
+tools/*
+!tools/.gitkeep
+vendor/*
+!vendor/.gitkeep
+gateway/node_modules/
+*.log
+.DS_Store
+Thumbs.db

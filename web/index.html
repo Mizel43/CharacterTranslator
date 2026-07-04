@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Персональный переводчик на естественный американский английский через Qwen Chat.">
+  <title>Character Translator</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">Qwen Character Translator</p>
+      <h1>Живой американский английский</h1>
+    </div>
+    <div class="header-actions">
+      <button id="connectionButton" class="status-chip" type="button" aria-label="Проверить подключение">
+        <span id="connectionDot" class="status-dot"></span>
+        <span id="connectionText">Не подключено</span>
+      </button>
+      <button id="openSettings" class="icon-button" type="button" aria-label="Настройки">⚙</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel character-panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Голос</p>
+          <h2>Персонаж</h2>
+        </div>
+        <button id="newProfile" class="secondary-button compact" type="button">+ Новый</button>
+      </div>
+
+      <label class="field">
+        <span>Профиль</span>
+        <select id="profileSelect"></select>
+      </label>
+
+      <div id="profileSummary" class="profile-summary"></div>
+
+      <div class="button-row">
+        <button id="editProfile" class="secondary-button" type="button">Редактировать</button>
+        <button id="duplicateProfile" class="ghost-button" type="button">Копия</button>
+      </div>
+
+      <details class="data-tools">
+        <summary>Перенос профилей</summary>
+        <div class="button-row wrap">
+          <button id="exportProfiles" class="ghost-button" type="button">Экспорт JSON</button>
+          <label class="ghost-button file-button">
+            Импорт JSON
+            <input id="importProfiles" type="file" accept="application/json,.json">
+          </label>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel translator-panel">
+      <div class="quick-grid">
+        <label class="field">
+          <span>Контекст</span>
+          <select id="contextSelect">
+            <option value="chat">Обычная переписка</option>
+            <option value="instagram_dm">Instagram DM</option>
+            <option value="instagram_caption">Подпись к посту</option>
+            <option value="comment">Комментарий</option>
+            <option value="dating">Дейтинг</option>
+            <option value="friend">Близкий друг</option>
+            <option value="partner">Партнёр</option>
+            <option value="follower">Ответ подписчику</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Тон</span>
+          <select id="toneSelect">
+            <option value="natural">Естественный</option>
+            <option value="friendly">Дружелюбный</option>
+            <option value="playful">Игривый</option>
+            <option value="flirty">Флиртующий</option>
+            <option value="confident">Уверенный</option>
+            <option value="bold">Дерзкий</option>
+            <option value="sarcastic">Саркастичный</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Модель</span>
+          <select id="modelSelect">
+            <option value="qwen3.7-max">qwen3.7-max</option>
+            <option value="qwen3.7-plus">qwen3.7-plus</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="sliders">
+        <label class="slider-field"><span>Сленг <output id="slangValue">1</output></span><input id="slang" type="range" min="0" max="4" value="1"></label>
+        <label class="slider-field"><span>Флирт <output id="flirtValue">1</output></span><input id="flirt" type="range" min="0" max="4" value="1"></label>
+        <label class="slider-field"><span>Вульгарность <output id="vulgarityValue">0</output></span><input id="vulgarity" type="range" min="0" max="4" value="0"></label>
+        <label class="slider-field"><span>Сексуальный намёк <output id="sexualTensionValue">0</output></span><input id="sexualTension" type="range" min="0" max="4" value="0"></label>
+        <label class="slider-field"><span>Прямота <output id="directnessValue">2</output></span><input id="directness" type="range" min="0" max="4" value="2"></label>
+      </div>
+
+      <label class="field source-field">
+        <span>Русский текст</span>
+        <textarea id="sourceText" rows="6" maxlength="4000" placeholder="Напиши фразу по-русски…"></textarea>
+        <small><span id="charCount">0</span>/4000 · Ctrl+Enter — перевести</small>
+      </label>
+
+      <button id="translateButton" class="primary-button" type="button">Перевести</button>
+
+      <section id="resultCard" class="result-card hidden" aria-live="polite">
+        <div class="result-heading">
+          <span>Результат</span>
+          <span id="resultModel" class="model-badge"></span>
+        </div>
+        <p id="resultText"></p>
+        <div class="button-row wrap">
+          <button id="copyResult" class="primary-button compact" type="button">Копировать</button>
+          <button id="regenerateResult" class="secondary-button compact" type="button">Другой вариант</button>
+          <button id="softerResult" class="ghost-button compact" type="button">Мягче</button>
+          <button id="bolderResult" class="ghost-button compact" type="button">Смелее</button>
+        </div>
+      </section>
+
+      <div id="messageBox" class="message-box hidden" role="status"></div>
+    </section>
+  </main>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="dialog-card" id="settingsForm">
+      <div class="section-heading">
+        <div><p class="eyebrow">Подключение</p><h2>Настройки</h2></div>
+        <button class="icon-button dialog-close" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <label class="field">
+        <span>Gateway URL</span>
+        <input id="gatewayUrl" type="url" placeholder="https://random.trycloudflare.com">
+      </label>
+      <label class="field">
+        <span>Ключ доступа</span>
+        <input id="accessToken" type="password" autocomplete="off" placeholder="Секретный токен">
+      </label>
+      <p class="hint">При запуске через QR эти поля заполняются автоматически. Данные сохраняются только в этом браузере.</p>
+      <div class="button-row end">
+        <button id="testConnection" class="secondary-button" type="button">Проверить</button>
+        <button id="saveSettings" class="primary-button" value="default">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="profileDialog">
+    <form method="dialog" class="dialog-card profile-form" id="profileForm">
+      <div class="section-heading">
+        <div><p class="eyebrow">Голос персонажа</p><h2 id="profileDialogTitle">Профиль</h2></div>
+        <button class="icon-button dialog-close" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <input id="profileId" type="hidden">
+      <div class="form-grid">
+        <label class="field"><span>Имя</span><input id="profileName" required maxlength="80"></label>
+        <label class="field"><span>Возраст, 18+</span><input id="profileAge" type="number" min="18" max="99" required></label>
+        <label class="field"><span>Голос / гендерная подача</span><input id="profileGenderVoice" maxlength="120" placeholder="young woman, casual"></label>
+        <label class="field"><span>Регион США</span><input id="profileRegion" maxlength="120" placeholder="Los Angeles, California"></label>
+      </div>
+      <label class="field"><span>Характер</span><textarea id="profilePersonality" rows="2" maxlength="500"></textarea></label>
+      <label class="field"><span>Лор и контекст</span><textarea id="profileLore" rows="3" maxlength="1500"></textarea></label>
+      <label class="field"><span>Примеры речи — по одному на строку</span><textarea id="profileExamples" rows="5" maxlength="5000" placeholder="okay but this is actually so cute"></textarea></label>
+      <div class="form-grid">
+        <label class="field"><span>Любимые выражения</span><textarea id="profilePreferred" rows="2" placeholder="по одному на строку"></textarea></label>
+        <label class="field"><span>Запрещённые выражения</span><textarea id="profileBanned" rows="2" placeholder="по одному на строку"></textarea></label>
+      </div>
+      <div class="form-grid three">
+        <label class="field"><span>Эмодзи</span><select id="profileEmoji"><option value="0">Нет</option><option value="1">Редко</option><option value="2">Иногда</option><option value="3">Часто</option></select></label>
+        <label class="field"><span>Длина</span><select id="profileLength"><option value="short">Коротко</option><option value="medium">Средне</option><option value="long">Развёрнуто</option></select></label>
+        <label class="check-field"><input id="profileLowercase" type="checkbox"><span>Преимущественно lowercase</span></label>
+      </div>
+      <div class="button-row between">
+        <button id="deleteProfile" class="danger-button" type="button">Удалить</button>
+        <div class="button-row">
+          <button class="ghost-button dialog-close" type="button">Отмена</button>
+          <button id="saveProfile" class="primary-button" value="default">Сохранить</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

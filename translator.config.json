@@ -1,0 +1,18 @@
+{
+  "frontendUrl": "https://YOUR_GITHUB_NAME.github.io/qwen-character-translator/",
+  "allowedOrigins": [
+    "https://YOUR_GITHUB_NAME.github.io",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173"
+  ],
+  "gatewayHost": "127.0.0.1",
+  "gatewayPort": 8787,
+  "qwenBaseUrl": "http://127.0.0.1:3264/api",
+  "defaultModel": "qwen3.7-max",
+  "maxInputChars": 4000,
+  "requestTimeoutMs": 120000,
+  "rateLimit": {
+    "windowMs": 600000,
+    "max": 30
+  }
+}
