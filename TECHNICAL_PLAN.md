@@ -1,124 +1,157 @@
-# Технический план MVP
+# Technical Plan
 
-## Changelog 0.2.0 - Style Engine v2
+## Version 0.3.0
 
-- Добавлен единый `docs/style-config.json` для пресетов, уровней контролов, tooltip, interaction rules и температур.
-- Gateway формирует prompt через Style Engine v2 и больше не передает модели только числа вида `Flirt: 3/4`.
-- Request schema расширена полями `presetId`, `priority`, `previous`; действия результата включают `alternative`, `shorter`, `softer`, `bolder`, `more_vulgar`, `apply_settings`.
-- Frontend заменяет `Контекст` и `Тон` на `Пресет`, хранит историю до 5 предыдущих вариантов и делает delta rewrite после изменения sliders.
-- Добавлены validator и один скрытый correction retry на Gateway.
+This version replaces the old GitHub Pages client model with a self-hosted Gateway-served UI.
 
-## 1. Компоненты
+## Components
 
-### Web UI
+### 1. Public Pages site
 
-Статический HTML/CSS/JavaScript без фреймворков. Размещается на GitHub Pages.
+Location: `docs/`
 
-Отвечает за:
+Purpose:
 
-- управление персонажами;
-- хранение настроек в `localStorage`;
-- сбор параметров перевода;
-- обращение к Gateway;
-- копирование результата;
-- импорт и экспорт JSON;
-- PWA-кэш интерфейса.
+- publish a safe project page;
+- explain setup and launch;
+- clear old cached Pages client state.
 
-### Translator Gateway
+It must not call privileged Gateway API routes.
 
-Node.js HTTP-сервер на `127.0.0.1:8787`.
+### 2. Gateway UI
 
-Маршруты:
+Location: `gateway/ui/`
+
+Served by the local Gateway at:
+
+```text
+GET /app/
+GET /app/app.js
+GET /app/styles.css
+GET /app/style-config.json
+GET /connect
+```
+
+The UI uses same-origin fetches with cookies and CSRF.
+
+### 3. Translator Gateway
+
+Location: `gateway/`
+
+Main modules:
+
+- `server.js` - HTTP entrypoint and route separation
+- `auth.js` - pairing claim, session lookup, CSRF validation, cookies
+- `session-store.js` - in-memory sessions
+- `static.js` - `/app/*` and `/connect` static serving
+- `security-headers.js` - CSP and related headers
+- `request.js` - request normalization and profile sanitization
+- `qwen-client.js` - upstream Qwen HTTP client
+- `translate-service.js` - normalize -> prompt -> validate -> retry flow
+- `prompt.js` - prompt assembly only
+- `validator.js` - output validation only
+
+### 4. FreeQwenApi
+
+Runs on localhost only:
+
+```text
+http://127.0.0.1:3264/api
+```
+
+Used endpoints:
+
+```text
+GET  /health
+GET  /models
+POST /chat/completions
+```
+
+### 5. Cloudflare Quick Tunnel
+
+Publishes only the Gateway port, not FreeQwenApi directly.
+
+## Route model
+
+Public:
 
 ```text
 GET  /public/ping
-GET  /api/health
-GET  /api/models
-POST /api/translate
+GET  /connect
+POST /api/session/claim
+GET  /app/*
 ```
 
-Функции:
-
-- Bearer-аутентификация;
-- точный CORS allowlist;
-- in-memory rate limit;
-- ограничение размера JSON и исходного текста;
-- серверная сборка промпта;
-- нормализация профиля;
-- запрос в FreeQwenApi;
-- очистка ответа модели;
-- сокрытие внутреннего API от браузера.
-
-### FreeQwenApi
-
-Работает на `127.0.0.1:3264/api`.
-
-Используемые маршруты:
+Protected:
 
 ```text
 GET  /api/health
 GET  /api/models
-POST /api/chat/completions
+POST /api/translate
+POST /api/session/logout
 ```
 
-### Cloudflare Quick Tunnel
+## Pairing flow
 
-Публикует только Gateway. FreeQwenApi напрямую наружу не выставляется.
+1. `start_translator.bat` creates a high-entropy one-time pairing code.
+2. The script starts Gateway with `TRANSLATOR_PAIRING_CODE`.
+3. The script obtains the current tunnel URL.
+4. The local helper page shows a link:
 
-## 2. Поток запроса
+```text
+https://<quick-tunnel>/connect#code=<one-time-code>
+```
 
-1. Пользователь выбирает профиль и параметры.
-2. Браузер отправляет JSON в `/api/translate`.
-3. Gateway проверяет origin, токен, rate limit и поля.
-4. Gateway превращает параметры в system/user messages.
-5. FreeQwenApi пересылает запрос в авторизованную сессию Qwen Chat.
-6. Gateway извлекает `choices[0].message.content`.
-7. Интерфейс показывает и копирует результат.
+5. `/connect` claims the code with `POST /api/session/claim`.
+6. Gateway sets cookies and redirects the browser to `/app/`.
 
-## 3. Безопасность
+## Cookie model
 
-- FreeQwenApi слушает только localhost.
-- Gateway слушает только localhost и публикуется через tunnel.
-- Токен генерируется криптографическим RNG, 256 бит.
-- Токен не находится в GitHub Pages.
-- Первичная передача на телефон идёт через URL fragment.
-- После чтения fragment удаляется через `history.replaceState`.
-- CORS разрешает только заданный GitHub Pages origin и localhost preview.
-- Длина текста ограничена 4000 символами.
-- Частота по умолчанию: 30 запросов за 10 минут на IP.
-- Профили допускаются только для возраста 18+.
+- session cookie: `HttpOnly`, `SameSite=Lax`, `Secure` when the request is HTTPS
+- CSRF cookie: readable by JavaScript, same lifetime as the session
 
-## 4. Конфигурация
+The browser no longer stores a Gateway access token.
 
-Основной файл: `translator.config.json`.
+## Request handling
 
-Изменяемые поля:
+`/api/translate` pipeline:
 
-- `frontendUrl`;
-- `allowedOrigins`;
-- `gatewayPort`;
-- `qwenBaseUrl`;
-- `defaultModel`;
-- `maxInputChars`;
-- `requestTimeoutMs`;
-- `rateLimit`.
+1. verify session
+2. verify origin
+3. verify CSRF
+4. apply rate limit
+5. normalize request
+6. build messages
+7. call Qwen
+8. validate output
+9. optionally do one correction retry
 
-Секретный токен: `data/access-token.txt`.
+## Config
 
-## 5. Надёжность
+Tracked template:
 
-- каждый процесс запускается отдельно и получает собственный лог;
-- PID сохраняются в `data/processes.json`;
-- перед запуском проверяются `/health` и `/public/ping`;
-- при частичном сбое уже запущенные процессы завершаются;
-- обновление FreeQwenApi создаёт резервную копию и восстанавливает её при ошибке;
-- список моделей имеет fallback на `qwen3.7-max` и `qwen3.7-plus`.
+- `translator.config.example.json`
 
-## 6. Следующий этап после MVP
+Local file:
 
-1. Закрепить постоянный Cloudflare Tunnel и домен.
-2. Добавить синхронизацию профилей через облачную базу.
-3. Добавить локальный `llama.cpp` как альтернативный движок.
-4. Добавить историю с локальным шифрованием.
-5. Добавить серверное хранение пресетов без передачи полного лора при каждом запросе.
-6. Добавить тестовый набор фраз и сравнение моделей.
+- `translator.config.json`
+
+Relevant keys:
+
+- `gatewayHost`
+- `gatewayPort`
+- `qwenBaseUrl`
+- `defaultModel`
+- `allowedOrigins`
+- `rateLimit`
+- `auth.pairingCodeTtlMs`
+- `auth.sessionTtlMs`
+
+## Tests
+
+Security-sensitive coverage is in:
+
+- `tests/auth.test.js`
+- `tests/security.test.js`
+- `tests/static.test.js`
+- existing prompt/style/validator tests

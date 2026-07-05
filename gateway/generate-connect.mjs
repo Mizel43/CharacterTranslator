@@ -34,20 +34,26 @@ const html = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Подключить телефон</title>
+  <title>Подключить браузер</title>
   <style>
     body{font-family:system-ui,sans-serif;background:#111827;color:#f9fafb;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px}
-    main{max-width:620px;text-align:center;background:#1f2937;border:1px solid #374151;border-radius:24px;padding:28px}
-    img{width:min(420px,90vw);border-radius:16px;background:white;padding:8px}
-    a{display:inline-block;margin-top:18px;background:#f9fafb;color:#111827;padding:12px 18px;border-radius:12px;text-decoration:none;font-weight:700}
-    p{color:#d1d5db;line-height:1.5;overflow-wrap:anywhere}
+    main{max-width:680px;text-align:center;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:28px}
+    img{width:min(420px,90vw);border-radius:12px;background:white;padding:8px}
+    a{display:inline-block;margin-top:18px;background:#f9fafb;color:#111827;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700}
+    p,li{color:#d1d5db;line-height:1.55;overflow-wrap:anywhere}
+    ul{text-align:left}
   </style>
 </head>
 <body><main>
-  <h1>Подключить переводчик</h1>
-  <p>Отсканируйте QR-код телефоном. Сайт сохранит адрес текущего туннеля и секретный ключ, затем удалит их из адресной строки.</p>
+  <h1>Подключить браузер к локальному Gateway</h1>
+  <p>Отсканируйте QR-код телефоном или откройте ссылку на этом компьютере. Она ведет на <code>/connect#code=...</code>, создаёт короткоживущую сессию и дальше открывает рабочий интерфейс на <code>/app/</code>.</p>
+  <ul>
+    <li>Код одноразовый и живёт несколько минут.</li>
+    <li>GitHub Pages больше не используется как клиент к Gateway.</li>
+    <li>Если вы перезапустите translator, потребуется новый QR или новая ссылка.</li>
+  </ul>
   <img src="connect-qr.png" alt="QR-код подключения">
-  <br><a href="${escaped}">Открыть переводчик на этом компьютере</a>
+  <br><a href="${escaped}">Открыть ссылку привязки</a>
   <p>${escaped}</p>
 </main></body></html>`;
 

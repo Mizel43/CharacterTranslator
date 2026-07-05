@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test ../tests/*.test.js"
+    "test": "node --test ../tests/*.test.js",
+    "check": "node --check server.js && node --check auth.js && node --check static.js && node --check request.js && node --check qwen-client.js && node --check translate-service.js && node --check prompt.js && node --check style-engine.js && node --check validator.js"
   },
   "dependencies": {
     "qrcode": "^1.5.4"

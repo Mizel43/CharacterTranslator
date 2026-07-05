@@ -7,6 +7,7 @@ tools/*
 vendor/*
 !vendor/.gitkeep
 gateway/node_modules/
+translator.config.json
 *.log
 .DS_Store
 Thumbs.db

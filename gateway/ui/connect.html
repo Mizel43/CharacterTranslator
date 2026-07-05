@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="One-time pairing page for the self-hosted translator.">
+  <title>Connect Browser</title>
+  <link rel="icon" href="/app/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/app/styles.css">
+</head>
+<body class="connect-shell">
+  <main class="connect-wrap">
+    <section class="connect-card">
+      <p class="eyebrow">Gateway Pairing</p>
+      <h1>Подключение браузера</h1>
+      <p class="lead">Эта страница принимает одноразовый код из QR или ссылки, создает локальную сессию и переводит браузер в `/app/`.</p>
+      <div id="connectMessage" class="message-box">Проверяю код привязки...</div>
+      <div class="button-row wrap">
+        <button id="retryClaim" class="secondary-button compact" type="button">Повторить</button>
+        <a href="/app/" class="ghost-button compact">Открыть /app/</a>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/app/connect.js"></script>
+</body>
+</html>

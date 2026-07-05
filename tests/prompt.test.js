@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMessages, cleanModelOutput, normalizeRequest } from '../gateway/prompt.js';
+import { buildMessages, cleanModelOutput } from '../gateway/prompt.js';
+import { normalizeRequest } from '../gateway/request.js';
 
 test('normalizes a valid adult character request', () => {
   const input = normalizeRequest({

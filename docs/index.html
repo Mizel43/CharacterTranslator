@@ -4,200 +4,75 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#111827">
-  <meta name="description" content="Персональный переводчик на естественный американский английский через Qwen Chat.">
-  <title>Character Translator</title>
+  <meta name="description" content="Public project page for the self-hosted Qwen Character Translator.">
+  <title>Qwen Character Translator</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="app-header">
-    <div>
-      <p class="eyebrow">Qwen Character Translator</p>
-      <h1>Живой американский английский</h1>
-    </div>
-    <div class="header-actions">
-      <button id="connectionButton" class="status-chip" type="button" aria-label="Проверить подключение">
-        <span id="connectionDot" class="status-dot"></span>
-        <span id="connectionText">Не подключено</span>
-      </button>
-      <button id="openSettings" class="icon-button" type="button" aria-label="Настройки">⚙</button>
+  <header class="site-header">
+    <div class="header-inner">
+      <div>
+        <p class="eyebrow">Public Info Page</p>
+        <h1>Qwen Character Translator</h1>
+        <p class="lead">GitHub Pages теперь публикует только безопасную информационную страницу. Рабочий интерфейс переводчика отдается локальным Gateway через Cloudflare Quick Tunnel и открывается по same-origin адресу `/app/`.</p>
+      </div>
+      <nav class="header-nav">
+        <a href="https://github.com/Mizel43/CharacterTranslator" rel="noreferrer noopener">GitHub</a>
+        <a href="https://github.com/Mizel43/CharacterTranslator/blob/main/README.md" rel="noreferrer noopener">README</a>
+        <a href="https://github.com/Mizel43/CharacterTranslator/blob/main/SECURITY.md" rel="noreferrer noopener">Security</a>
+        <a href="https://github.com/Mizel43/CharacterTranslator/blob/main/DEPLOY_GITHUB.md" rel="noreferrer noopener">Deploy</a>
+      </nav>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="panel character-panel">
-      <div class="section-heading">
+  <main>
+    <section class="band">
+      <div class="content-grid">
         <div>
-          <p class="eyebrow">Голос</p>
-          <h2>Персонаж</h2>
+          <p class="eyebrow">Как запускать сейчас</p>
+          <h2>Новый поток запуска</h2>
+          <ol class="steps">
+            <li>Запустите <code>setup.bat</code> один раз, чтобы подготовить зависимости и локальный <code>translator.config.json</code>.</li>
+            <li>При необходимости выполните <code>authorize_qwen.bat</code> и завершите вход в Qwen.</li>
+            <li>Запустите <code>start_translator.bat</code>.</li>
+            <li>Локальное окно покажет QR и одноразовую ссылку вида <code>https://&lt;quick-tunnel&gt;/connect#code=...</code>.</li>
+            <li>Откройте эту ссылку или отсканируйте QR. После успешной привязки браузер откроет same-origin приложение по адресу <code>/app/</code>.</li>
+          </ol>
         </div>
-        <button id="newProfile" class="secondary-button compact" type="button">+ Новый</button>
-      </div>
-
-      <label class="field">
-        <span>Профиль</span>
-        <select id="profileSelect"></select>
-      </label>
-
-      <div id="profileSummary" class="profile-summary"></div>
-
-      <div class="button-row">
-        <button id="editProfile" class="secondary-button" type="button">Редактировать</button>
-        <button id="duplicateProfile" class="ghost-button" type="button">Копия</button>
-      </div>
-
-      <details class="data-tools">
-        <summary>Перенос профилей</summary>
-        <div class="button-row wrap">
-          <button id="exportProfiles" class="ghost-button" type="button">Экспорт JSON</button>
-          <label class="ghost-button file-button">
-            Импорт JSON
-            <input id="importProfiles" type="file" accept="application/json,.json">
-          </label>
+        <div class="note-panel">
+          <p class="eyebrow">Что изменилось</p>
+          <ul class="plain-list">
+            <li>GitHub Pages больше не хранит и не исполняет клиент для Gateway API.</li>
+            <li>В браузер больше не попадает bearer token, который можно читать из <code>localStorage</code>.</li>
+            <li>Сессия создается одноразовым pairing code и живет в <code>HttpOnly</code> cookie.</li>
+            <li>Запросы к API требуют валидную сессию, CSRF header и допустимый origin.</li>
+          </ul>
         </div>
-      </details>
+      </div>
     </section>
 
-    <section class="panel translator-panel">
-      <div class="quick-grid">
-        <label class="field">
-          <span>Пресет <small id="presetDirty" class="dirty-marker hidden">изменен</small></span>
-          <select id="presetSelect"></select>
-        </label>
-        <label class="field">
-          <span>Приоритет</span>
-          <select id="prioritySelect">
-            <option value="settings">Настройки сообщения</option>
-            <option value="voice">Голос персонажа</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Модель</span>
-          <select id="modelSelect">
-            <option value="qwen3.7-max">qwen3.7-max</option>
-            <option value="qwen3.7-plus">qwen3.7-plus</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="sliders">
-        <label class="slider-field">
-          <span><span data-control-label="slang">Сленг</span><button class="help-button" data-control-help="slang" type="button" aria-label="Подсказка">?</button></span>
-          <input id="slang" type="range" min="0" max="4" value="1">
-          <output id="slangValue">1</output>
-        </label>
-        <label class="slider-field">
-          <span><span data-control-label="flirt">Флирт</span><button class="help-button" data-control-help="flirt" type="button" aria-label="Подсказка">?</button></span>
-          <input id="flirt" type="range" min="0" max="4" value="1">
-          <output id="flirtValue">1</output>
-        </label>
-        <label class="slider-field">
-          <span><span data-control-label="vulgarity">Вульгарность</span><button class="help-button" data-control-help="vulgarity" type="button" aria-label="Подсказка">?</button></span>
-          <input id="vulgarity" type="range" min="0" max="4" value="0">
-          <output id="vulgarityValue">0</output>
-        </label>
-        <label class="slider-field">
-          <span><span data-control-label="sexualTension">Сексуальный намек</span><button class="help-button" data-control-help="sexualTension" type="button" aria-label="Подсказка">?</button></span>
-          <input id="sexualTension" type="range" min="0" max="4" value="0">
-          <output id="sexualTensionValue">0</output>
-        </label>
-        <label class="slider-field">
-          <span><span data-control-label="directness">Прямота</span><button class="help-button" data-control-help="directness" type="button" aria-label="Подсказка">?</button></span>
-          <input id="directness" type="range" min="0" max="4" value="2">
-          <output id="directnessValue">2</output>
-        </label>
-      </div>
-
-      <label class="field source-field">
-        <span>Русский текст</span>
-        <textarea id="sourceText" rows="6" maxlength="4000" placeholder="Напиши фразу по-русски..."></textarea>
-        <small><span id="charCount">0</span>/4000 · Ctrl+Enter - перевести</small>
-      </label>
-
-      <button id="translateButton" class="primary-button" type="button">Перевести</button>
-
-      <section id="resultCard" class="result-card hidden" aria-live="polite">
-        <div class="result-heading">
-          <span>Результат</span>
-          <span id="resultModel" class="model-badge"></span>
+    <section class="band band-alt">
+      <div class="content-grid">
+        <div>
+          <p class="eyebrow">Локальная конфигурация</p>
+          <h2>Что остается только на вашей машине</h2>
+          <p><code>translator.config.json</code> теперь считается локальным файлом, создается из <code>translator.config.example.json</code> и не коммитится. Runtime URL туннеля, сессии Qwen, cookies и переводимые тексты не публикуются через GitHub Pages.</p>
+          <p id="cleanupStatus" class="status-text">Проверяю и очищаю устаревший кэш старого GitHub Pages клиента...</p>
         </div>
-        <p id="resultText"></p>
-        <div class="button-row wrap">
-          <button id="copyResult" class="primary-button compact" type="button">Копировать</button>
-          <button id="regenerateResult" class="secondary-button compact" type="button">По-другому</button>
-          <button id="shorterResult" class="ghost-button compact" type="button">Короче</button>
-          <button id="softerResult" class="ghost-button compact" type="button">Мягче</button>
-          <button id="bolderResult" class="ghost-button compact" type="button">Смелее</button>
-          <button id="moreVulgarResult" class="ghost-button compact" type="button">Вульгарнее</button>
+        <div class="note-panel">
+          <p class="eyebrow">Документация</p>
+          <ul class="plain-list">
+            <li><a href="https://github.com/Mizel43/CharacterTranslator/blob/main/README.md" rel="noreferrer noopener">README</a> — установка и текущий запуск.</li>
+            <li><a href="https://github.com/Mizel43/CharacterTranslator/blob/main/TECHNICAL_PLAN.md" rel="noreferrer noopener">TECHNICAL_PLAN.md</a> — архитектура Gateway/UI/auth.</li>
+            <li><a href="https://github.com/Mizel43/CharacterTranslator/blob/main/VALIDATION.md" rel="noreferrer noopener">VALIDATION.md</a> — проверки и ручная валидация.</li>
+            <li><a href="https://github.com/Mizel43/CharacterTranslator/blob/main/SECURITY.md" rel="noreferrer noopener">SECURITY.md</a> — threat model и правила хранения секретов.</li>
+          </ul>
         </div>
-      </section>
-
-      <div id="messageBox" class="message-box hidden" role="status"></div>
+      </div>
     </section>
   </main>
-
-  <dialog id="settingsDialog">
-    <form method="dialog" class="dialog-card" id="settingsForm">
-      <div class="section-heading">
-        <div><p class="eyebrow">Подключение</p><h2>Настройки</h2></div>
-        <button class="icon-button dialog-close" type="button" aria-label="Закрыть">×</button>
-      </div>
-      <label class="field">
-        <span>Gateway URL</span>
-        <input id="gatewayUrl" type="url" placeholder="https://random.trycloudflare.com">
-      </label>
-      <label class="field">
-        <span>Ключ доступа</span>
-        <input id="accessToken" type="password" autocomplete="off" placeholder="Секретный токен">
-      </label>
-      <p class="hint">При запуске через QR эти поля заполняются автоматически. Данные сохраняются только в этом браузере.</p>
-      <div class="button-row end">
-        <button id="testConnection" class="secondary-button" type="button">Проверить</button>
-        <button id="saveSettings" class="primary-button" value="default">Сохранить</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="profileDialog">
-    <form method="dialog" class="dialog-card profile-form" id="profileForm">
-      <div class="section-heading">
-        <div><p class="eyebrow">Голос персонажа</p><h2 id="profileDialogTitle">Профиль</h2></div>
-        <button class="icon-button dialog-close" type="button" aria-label="Закрыть">×</button>
-      </div>
-      <input id="profileId" type="hidden">
-      <div class="form-grid">
-        <label class="field"><span>Имя</span><input id="profileName" required maxlength="80"></label>
-        <label class="field"><span>Возраст, 18+</span><input id="profileAge" type="number" min="18" max="99" required></label>
-        <label class="field"><span>Голос / гендерная подача</span><input id="profileGenderVoice" maxlength="120" placeholder="young woman, casual"></label>
-        <label class="field"><span>Регион США</span><input id="profileRegion" maxlength="120" placeholder="Los Angeles, California"></label>
-      </div>
-      <label class="field"><span>Характер</span><textarea id="profilePersonality" rows="2" maxlength="500"></textarea></label>
-      <label class="field"><span>Лор и контекст</span><textarea id="profileLore" rows="3" maxlength="1500"></textarea></label>
-      <label class="field"><span>Бэкграунд</span><textarea id="profileBackground" rows="2" maxlength="1000"></textarea></label>
-      <div class="form-grid">
-        <label class="field"><span>Отношение к собеседнику</span><textarea id="profileRelationship" rows="2" maxlength="300"></textarea></label>
-        <label class="field"><span>Стиль общения</span><textarea id="profileCommunicationStyle" rows="2" maxlength="500"></textarea></label>
-      </div>
-      <label class="field"><span>Примеры речи - по одному на строку</span><textarea id="profileExamples" rows="5" maxlength="5000" placeholder="okay but this is actually so cute"></textarea></label>
-      <div class="form-grid">
-        <label class="field"><span>Любимые выражения</span><textarea id="profilePreferred" rows="2" placeholder="по одному на строку"></textarea></label>
-        <label class="field"><span>Запрещенные выражения</span><textarea id="profileBanned" rows="2" placeholder="по одному на строку"></textarea></label>
-      </div>
-      <div class="form-grid three">
-        <label class="field"><span>Эмодзи</span><select id="profileEmoji"><option value="0">Нет</option><option value="1">Редко</option><option value="2">Иногда</option><option value="3">Часто</option></select></label>
-        <label class="field"><span>Длина</span><select id="profileLength"><option value="short">Коротко</option><option value="medium">Средне</option><option value="long">Развернуто</option></select></label>
-        <label class="check-field"><input id="profileLowercase" type="checkbox"><span>Преимущественно lowercase</span></label>
-      </div>
-      <div class="button-row between">
-        <button id="deleteProfile" class="danger-button" type="button">Удалить</button>
-        <div class="button-row">
-          <button class="ghost-button dialog-close" type="button">Отмена</button>
-          <button id="saveProfile" class="primary-button" value="default">Сохранить</button>
-        </div>
-      </div>
-    </form>
-  </dialog>
 
   <script src="app.js" defer></script>
 </body>

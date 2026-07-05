@@ -1,190 +1,165 @@
-# Qwen Character Translator — MVP
+# Qwen Character Translator
 
-Персональный веб-переводчик с русского на естественный американский английский. Перевод учитывает профиль взрослого персонажа, контекст, сленг, флирт, вульгарность, сексуальный намёк и прямоту.
+Self-hosted translator from Russian to natural American English with character profiles, style controls, and a local Gateway in front of FreeQwenApi.
 
-## Что уже реализовано
+## Security model
 
-- адаптивный интерфейс для компьютера и телефона;
-- размещение статического сайта на GitHub Pages через GitHub Actions;
-- профили персонажей 18+ с лором и примерами речи;
-- локальное хранение, импорт и экспорт профилей;
-- один лучший перевод и действия «другой вариант», «мягче», «смелее»;
-- выбор модели из FreeQwenApi;
-- локальный защищённый Translator Gateway;
-- секретный токен, CORS, ограничение частоты и размера запросов;
-- запуск FreeQwenApi, Gateway и Cloudflare Quick Tunnel одним BAT-файлом;
-- автоматическая страница с QR-кодом для подключения телефона;
-- PWA-манифест для установки сайта на главный экран.
+GitHub Pages is no longer the translator app.
 
-## Архитектура
+- `docs/` now publishes only a safe public information page.
+- The real browser UI is served by the local Gateway at `/app/` through the current Cloudflare Quick Tunnel URL.
+- Browser access is created by a one-time pairing link at `/connect#code=...`.
+- The browser no longer stores a Gateway bearer token in `localStorage`.
+- Auth now uses short-lived pairing, `HttpOnly` session cookies, a readable CSRF cookie, and same-origin API calls.
+
+## Current architecture
 
 ```text
-Телефон / браузер
-        ↓
-GitHub Pages
-        ↓ HTTPS + Bearer token
+Phone / browser
+        |
+        | HTTPS
+        v
 Cloudflare Quick Tunnel
-        ↓
-Translator Gateway на ПК
-        ↓
+        |
+        v
+Translator Gateway on your PC
+  |- /connect
+  |- /app/
+  |- /api/*
+        |
+        v
 FreeQwenApi
-        ↓
+        |
+        v
 Qwen Chat
 ```
 
-На телефон ничего устанавливать не требуется. Компьютер должен быть включён, а `start_translator.bat` — запущен.
+GitHub Pages stays public, but it only hosts project info and setup instructions.
 
-## Совместимость с Windows PowerShell
+## What changed in the launch flow
 
-Скрипты PowerShell сохранены в UTF-8 с BOM, чтобы Windows PowerShell 5.1 корректно читал русский текст. Если в старой копии возникает `ParserError` и видны символы вида `РќРµ`, скачайте версию 0.1.1 или новее.
+Old flow:
 
-## Быстрый старт
+- open GitHub Pages;
+- GitHub Pages stored Gateway URL and access token in browser state;
+- public Pages JavaScript was part of the trusted path.
 
-### 1. Установите Node.js
+New flow:
 
-Нужен Node.js 20 или новее. Рекомендуется актуальная LTS-версия:
+1. Run `start_translator.bat`.
+2. The local script starts FreeQwenApi, Gateway, and Cloudflare Quick Tunnel.
+3. The script creates a one-time pairing URL like `https://<quick-tunnel>/connect#code=...`.
+4. A local HTML page with QR opens on the PC and the same link is copied to clipboard.
+5. The browser claims the code at `/api/session/claim`, receives cookies, then opens `/app/`.
 
-https://nodejs.org/en/download
+This means GitHub Pages is no longer able to act as a privileged API client.
 
-### 2. Запустите первичную установку
+## Requirements
+
+- Windows with PowerShell
+- Node.js 20+
+- Git
+- Browser access for Qwen login
+
+## Quick start
+
+### 1. Run initial setup
 
 ```text
 setup.bat
 ```
 
-Скрипт:
+Setup does the following:
 
-1. скачает FreeQwenApi;
-2. установит его зависимости;
-3. скачает `cloudflared.exe` в папку проекта;
-4. установит зависимости Gateway;
-5. создаст случайный секретный ключ;
-6. предложит указать адрес GitHub Pages;
-7. предложит открыть авторизацию Qwen.
+- installs Gateway dependencies;
+- downloads FreeQwenApi if missing;
+- installs FreeQwenApi dependencies;
+- downloads `cloudflared.exe` if missing;
+- creates local `translator.config.json` from `translator.config.example.json` when needed.
 
-### 3. Авторизуйтесь в Qwen
-
-Если не сделали это во время установки:
+### 2. Authorize Qwen
 
 ```text
 authorize_qwen.bat
 ```
 
-Откроется браузер. Войдите в Qwen Chat и завершите процедуру в консоли.
+If your Qwen session is already valid, you can skip this step.
 
-### 4. Опубликуйте интерфейс
-
-Следуйте файлу [DEPLOY_GITHUB.md](DEPLOY_GITHUB.md).
-
-После публикации впишите настоящий адрес сайта в `translator.config.json`:
-
-```json
-{
-  "frontendUrl": "https://USERNAME.github.io/qwen-character-translator/",
-  "allowedOrigins": [
-    "https://USERNAME.github.io",
-    "http://localhost:4173",
-    "http://127.0.0.1:4173"
-  ]
-}
-```
-
-В `allowedOrigins` указывается только origin, без пути репозитория.
-
-### 5. Запустите переводчик
+### 3. Start the translator
 
 ```text
 start_translator.bat
 ```
 
-После запуска откроется локальная страница с QR-кодом. Отсканируйте его телефоном. Сайт автоматически сохранит:
+The script opens a local QR page and copies a one-time pairing link to clipboard. Open that link in the browser you want to use. After claim succeeds, the working app opens at `/app/`.
 
-- текущий адрес Quick Tunnel;
-- секретный ключ доступа.
-
-Секрет передаётся в URL-фрагменте после `#`, поэтому браузер не отправляет его GitHub Pages. После чтения сайт удаляет фрагмент из адресной строки.
-
-### 6. Остановка
+### 4. Stop everything
 
 ```text
 stop_translator.bat
 ```
 
-## Важное ограничение Quick Tunnel
+## Local configuration
 
-Адрес `trycloudflare.com` меняется после каждого нового запуска. Поэтому после перезапуска нужно снова отсканировать новый QR-код. Это сознательное упрощение первой версии.
+- `translator.config.example.json` is the tracked template.
+- `translator.config.json` is local-only and ignored by Git.
 
-Позже Quick Tunnel можно заменить постоянным Cloudflare Tunnel с доменом, не меняя интерфейс или Gateway.
+Default example:
 
-## Локальный предпросмотр сайта
+```json
+{
+  "frontendUrl": "",
+  "allowedOrigins": [
+    "http://localhost:4173",
+    "http://127.0.0.1:4173"
+  ],
+  "gatewayHost": "127.0.0.1",
+  "gatewayPort": 8787,
+  "qwenBaseUrl": "http://127.0.0.1:3264/api",
+  "defaultModel": "qwen3.7-max",
+  "maxInputChars": 4000,
+  "requestTimeoutMs": 120000,
+  "rateLimit": {
+    "windowMs": 600000,
+    "max": 30
+  }
+}
+```
 
-Если на компьютере установлен Python:
+`frontendUrl` is kept for compatibility only. The running translator no longer depends on GitHub Pages.
+
+## Local files that must never be committed
+
+- `translator.config.json`
+- `data/`
+- `logs/`
+- `tools/`
+- `vendor/FreeQwenApi/`
+- Qwen sessions, cookies, tunnel runtime files, pairing links
+
+## Public page preview
 
 ```text
 preview_site.bat
 ```
 
-Сайт откроется на `http://127.0.0.1:4173`.
+This previews the safe public `docs/` page only. It does not start the translator app.
 
-## Файлы запуска
+## Validation
 
-| Файл | Назначение |
-|---|---|
-| `setup.bat` | первичная установка |
-| `authorize_qwen.bat` | вход или повторный вход в Qwen |
-| `start_translator.bat` | запуск всей системы |
-| `stop_translator.bat` | остановка процессов |
-| `update_qwen_api.bat` | обновление FreeQwenApi с резервной копией |
-| `preview_site.bat` | локальный просмотр интерфейса |
-
-## Где хранятся секреты
-
-Локально и вне Git:
-
-```text
-data/access-token.txt
-vendor/FreeQwenApi/session/
-vendor/FreeQwenApi/.env
-```
-
-Эти пути исключены через `.gitignore`. Никогда не загружайте их в GitHub вручную.
-
-## Логи
-
-```text
-logs/qwen.log
-logs/gateway.log
-logs/cloudflared.log
-```
-
-При проблеме сначала смотрите соответствующий файл.
-
-## Проверка кода
+Automated checks:
 
 ```text
 cd gateway
 npm test
+npm run check
 ```
 
-## Style Engine v2
+Manual validation steps are listed in [VALIDATION.md](VALIDATION.md).
 
-Версия 0.2.0 заменяет отдельные поля контекста и тона на единый `Пресет` и добавляет общий конфиг `docs/style-config.json`.
+## Documentation
 
-Что изменилось:
-
-- frontend грузит пресеты, подписи уровней и tooltip из `style-config.json`;
-- Gateway читает тот же конфиг через `gateway/style-config.js`;
-- prompt получает текстовые инструкции каждого уровня, interaction rules и приоритет `Голос персонажа` / `Настройки сообщения`;
-- request schema поддерживает `presetId`, `priority`, `controls`, `profile`, `previous` и действия `alternative`, `shorter`, `softer`, `bolder`, `more_vulgar`, `apply_settings`;
-- повторный перевод после изменения sliders автоматически становится delta rewrite `apply_settings`;
-- Gateway скрыто валидирует первый ответ и делает максимум один correction request;
-- UI хранит до 5 предыдущих вариантов и не показывает пользователю внутренние проверки;
-- добавлен профиль-шаблон LA Creator с расширенными полями персонажа.
-
-## Известные риски
-
-- FreeQwenApi использует неофициальный веб-интерфейс Qwen, поэтому может сломаться после изменений Qwen Chat.
-- Возможны CAPTCHA, истечение сессии и лимиты аккаунта.
-- Фильтры Qwen Chat сохраняются.
-- Quick Tunnel предназначен для тестовой версии и не имеет постоянного адреса.
-- Публичный туннель защищён токеном, но не следует делиться QR-кодом или ссылкой подключения.
+- [DEPLOY_GITHUB.md](DEPLOY_GITHUB.md)
+- [SECURITY.md](SECURITY.md)
+- [TECHNICAL_PLAN.md](TECHNICAL_PLAN.md)
+- [VALIDATION.md](VALIDATION.md)

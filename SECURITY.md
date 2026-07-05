@@ -1,28 +1,75 @@
-# Безопасность
+# Security
 
-## Не публиковать
+## Trust boundary
 
-- `data/access-token.txt`;
-- `data/current-tunnel.json`;
-- `data/connect-phone.html` и QR-код;
-- `vendor/FreeQwenApi/session/`;
-- `vendor/FreeQwenApi/.env`;
-- cookies и токены Qwen;
-- содержимое `logs/`.
+The public GitHub Pages site is untrusted.
 
-## Если ссылка подключения утекла
+The trusted application client is the self-hosted UI served by the local Gateway:
 
-1. Остановите приложение через `stop_translator.bat`.
-2. Удалите `data/access-token.txt`.
-3. Запустите `setup.bat` — будет создан новый ключ.
-4. Снова запустите переводчик и подключите устройства новым QR-кодом.
+- `GET /connect`
+- `GET /app/`
+- `POST /api/session/claim`
+- authenticated same-origin `/api/*`
 
-## Почему Gateway обязателен
+## Rules
 
-GitHub Pages не должен обращаться прямо к FreeQwenApi. Gateway:
+- Do not trust GitHub Pages with Gateway credentials.
+- Do not store a long-lived Gateway token in `localStorage`, query strings, or public JavaScript.
+- Do not commit `translator.config.json`, runtime tunnel URLs, Qwen session files, cookies, or logs.
+- Do not log Russian source text, prompts, character profile content, or generated English output by default.
+- Do not allow GitHub Pages origin to call privileged Gateway endpoints.
 
-- не раскрывает внутренние маршруты;
-- не даёт браузеру свободно отправлять произвольные системные промпты;
-- ограничивает запросы;
-- проверяет токен и origin;
-- позволяет позже заменить Qwen на другую модель без изменения интерфейса.
+## Auth model
+
+- `start_translator.bat` creates a one-time pairing link at `/connect#code=...`.
+- `POST /api/session/claim` validates that code once.
+- Successful claim creates:
+  - `HttpOnly` session cookie
+  - readable CSRF cookie for same-origin JavaScript
+- State-changing requests require:
+  - valid session cookie
+  - `X-CSRF-Token`
+  - allowed origin
+
+## If a pairing link leaks
+
+1. Run `stop_translator.bat`.
+2. Start the translator again with `start_translator.bat`.
+3. Use the new QR or new `/connect#code=...` link.
+4. If needed, clear cookies for the tunnel origin in the browser.
+
+Because pairing codes are one-time and short-lived, a restart is enough to rotate the active trust path.
+
+## Local secrets and runtime files
+
+Keep these local-only:
+
+- `translator.config.json`
+- `data/current-tunnel.json`
+- `data/connect-phone.html`
+- `data/connect-qr.png`
+- `vendor/FreeQwenApi/session/`
+- `vendor/FreeQwenApi/.env`
+- `logs/`
+
+## Public Pages checks
+
+The published `docs/` artifact must contain:
+
+- no API bearer token
+- no connect URL with code
+- no direct client for `/api/translate`
+- no runtime tunnel URL
+
+## Server-side enforcement
+
+Gateway protection includes:
+
+- one-time pairing code
+- in-memory session store
+- origin allowlist plus same-origin checks
+- explicit deny for `*.github.io`
+- CSRF validation on POST routes
+- rate limiting
+- static file serving from `gateway/ui`
+- security headers and no path traversal

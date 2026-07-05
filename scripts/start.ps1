@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $QwenDir = Join-Path $Root 'vendor\FreeQwenApi'
 $GatewayDir = Join-Path $Root 'gateway'
@@ -6,8 +6,9 @@ $Cloudflared = Join-Path $Root 'tools\cloudflared.exe'
 $DataDir = Join-Path $Root 'data'
 $LogsDir = Join-Path $Root 'logs'
 $ConfigPath = Join-Path $Root 'translator.config.json'
-$TokenPath = Join-Path $DataDir 'access-token.txt'
+$ConfigExamplePath = Join-Path $Root 'translator.config.example.json'
 $PidPath = Join-Path $DataDir 'processes.json'
+$TunnelStatePath = Join-Path $DataDir 'current-tunnel.json'
 
 function Wait-Http([string]$Url, [int]$Seconds) {
     $Deadline = (Get-Date).AddSeconds($Seconds)
@@ -30,14 +31,28 @@ function Start-LoggedProcess([string]$Name, [string]$WorkingDir, [string]$Comman
     return $Process
 }
 
-if (-not (Test-Path (Join-Path $QwenDir 'package.json')) -or -not (Test-Path $Cloudflared) -or -not (Test-Path $TokenPath)) {
-    Write-Host 'Не завершена установка. Сначала запустите setup.bat.' -ForegroundColor Red
+function New-PairingCode {
+    $Bytes = New-Object byte[] 24
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($Bytes)
+    return [Convert]::ToBase64String($Bytes).TrimEnd('=').Replace('+','-').Replace('/','_')
+}
+
+if (-not (Test-Path (Join-Path $QwenDir 'package.json')) -or -not (Test-Path $Cloudflared)) {
+    Write-Host 'Setup is incomplete. Run setup.bat first.' -ForegroundColor Red
     exit 1
+}
+
+if (-not (Test-Path $ConfigPath)) {
+    if (-not (Test-Path $ConfigExamplePath)) {
+        Write-Host 'translator.config.example.json is missing. Check the repository.' -ForegroundColor Red
+        exit 1
+    }
+    Copy-Item $ConfigExamplePath $ConfigPath -Force
 }
 
 New-Item -ItemType Directory -Force -Path $DataDir, $LogsDir | Out-Null
 if (Test-Path $PidPath) {
-    Write-Host 'Найден прошлый запуск — сначала останавливаю его.' -ForegroundColor Yellow
+    Write-Host 'Found a previous run - stopping it first.' -ForegroundColor Yellow
     & (Join-Path $PSScriptRoot 'stop.ps1')
 }
 
@@ -48,25 +63,28 @@ $GatewayLog = Join-Path $LogsDir 'gateway.log'
 $TunnelLog = Join-Path $LogsDir 'cloudflared.log'
 Remove-Item $QwenLog, $GatewayLog, $TunnelLog -Force -ErrorAction SilentlyContinue
 
-Write-Host 'Запускаю FreeQwenApi...' -ForegroundColor Cyan
+Write-Host 'Starting FreeQwenApi...' -ForegroundColor Cyan
 $QwenCommand = "`$env:NON_INTERACTIVE='1'; `$env:SKIP_ACCOUNT_MENU='1'; `$env:HOST='127.0.0.1'; `$env:PORT='3264'; npm start"
 $Qwen = Start-LoggedProcess 'FreeQwenApi' $QwenDir $QwenCommand $QwenLog
 if (-not (Wait-Http 'http://127.0.0.1:3264/api/health' 75)) {
-    Write-Host 'FreeQwenApi не запустился. Проверьте logs\qwen.log и авторизацию.' -ForegroundColor Red
+    Write-Host 'FreeQwenApi did not start. Check logs\qwen.log and Qwen authorization.' -ForegroundColor Red
     & taskkill.exe /PID $Qwen.Id /T /F 2>$null | Out-Null
     exit 1
 }
 
-Write-Host 'Запускаю Translator Gateway...' -ForegroundColor Cyan
-$Gateway = Start-LoggedProcess 'Gateway' $GatewayDir 'node server.js' $GatewayLog
+$PairingCode = New-PairingCode
+
+Write-Host 'Starting Translator Gateway...' -ForegroundColor Cyan
+$GatewayCommand = "`$env:TRANSLATOR_PAIRING_CODE='$PairingCode'; node server.js"
+$Gateway = Start-LoggedProcess 'Gateway' $GatewayDir $GatewayCommand $GatewayLog
 if (-not (Wait-Http "http://127.0.0.1:$GatewayPort/public/ping" 20)) {
-    Write-Host 'Gateway не запустился. Проверьте logs\gateway.log.' -ForegroundColor Red
+    Write-Host 'Gateway did not start. Check logs\gateway.log.' -ForegroundColor Red
     & taskkill.exe /PID $Gateway.Id /T /F 2>$null | Out-Null
     & taskkill.exe /PID $Qwen.Id /T /F 2>$null | Out-Null
     exit 1
 }
 
-Write-Host 'Создаю временный Cloudflare Quick Tunnel...' -ForegroundColor Cyan
+Write-Host 'Creating a temporary Cloudflare Quick Tunnel...' -ForegroundColor Cyan
 $Tunnel = Start-Process $Cloudflared -ArgumentList @('--no-autoupdate','--loglevel','info','--logfile',$TunnelLog,'tunnel','--url',"http://127.0.0.1:$GatewayPort") -WindowStyle Hidden -PassThru
 $Deadline = (Get-Date).AddSeconds(45)
 $TunnelUrl = $null
@@ -79,7 +97,7 @@ do {
 } while (-not $TunnelUrl -and (Get-Date) -lt $Deadline -and -not $Tunnel.HasExited)
 
 if (-not $TunnelUrl) {
-    Write-Host 'Не удалось получить адрес Quick Tunnel. Проверьте logs\cloudflared.log.' -ForegroundColor Red
+    Write-Host 'Failed to obtain the Quick Tunnel URL. Check logs\cloudflared.log.' -ForegroundColor Red
     & taskkill.exe /PID $Gateway.Id /T /F 2>$null | Out-Null
     & taskkill.exe /PID $Qwen.Id /T /F 2>$null | Out-Null
     if (-not $Tunnel.HasExited) { & taskkill.exe /PID $Tunnel.Id /T /F 2>$null | Out-Null }
@@ -87,26 +105,16 @@ if (-not $TunnelUrl) {
 }
 
 @{ qwen = $Qwen.Id; gateway = $Gateway.Id; cloudflared = $Tunnel.Id } | ConvertTo-Json | Set-Content $PidPath -Encoding UTF8
-$Token = (Get-Content $TokenPath -Raw).Trim()
-$FrontendUrl = [string]$Config.frontendUrl
-$HasFrontend = $FrontendUrl -and $FrontendUrl -notmatch 'YOUR_GITHUB_NAME'
+@{ url = $TunnelUrl; startedAt = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content $TunnelStatePath -Encoding UTF8
 
-@{ url = $TunnelUrl; startedAt = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content (Join-Path $DataDir 'current-tunnel.json') -Encoding UTF8
+$EncodedCode = [Uri]::EscapeDataString($PairingCode)
+$ConnectUrl = "$TunnelUrl/connect#code=$EncodedCode"
+Set-Clipboard -Value $ConnectUrl
+& node (Join-Path $GatewayDir 'generate-connect.mjs') $ConnectUrl | Out-Null
+$ConnectPage = Join-Path $DataDir 'connect-phone.html'
+Start-Process $ConnectPage
 
-Write-Host "`nGateway доступен: $TunnelUrl" -ForegroundColor Green
-if ($HasFrontend) {
-    $EncodedGateway = [Uri]::EscapeDataString($TunnelUrl)
-    $EncodedToken = [Uri]::EscapeDataString($Token)
-    $ConnectUrl = "$FrontendUrl#gateway=$EncodedGateway&token=$EncodedToken"
-    Set-Clipboard -Value $ConnectUrl
-    & node (Join-Path $GatewayDir 'generate-connect.mjs') $ConnectUrl | Out-Null
-    $ConnectPage = Join-Path $DataDir 'connect-phone.html'
-    Start-Process $ConnectPage
-    Write-Host 'Открыта страница с QR-кодом. Ссылка также скопирована в буфер обмена.' -ForegroundColor Green
-} else {
-    Write-Host 'В translator.config.json пока не указан настоящий frontendUrl.' -ForegroundColor Yellow
-    Write-Host 'Откройте сайт, зайдите в настройки и вставьте:'
-    Write-Host "Gateway URL: $TunnelUrl"
-    Write-Host "Access token: $Token"
-}
-Write-Host "`nОкно можно закрыть — процессы продолжат работать. Для остановки используйте stop_translator.bat."
+Write-Host "`nThe local QR page is open and the pairing link has been copied to the clipboard." -ForegroundColor Green
+Write-Host 'GitHub Pages is no longer part of the live translator launch flow.' -ForegroundColor Green
+Write-Host 'After a restart, use a fresh QR code or a fresh /connect#code=... link.' -ForegroundColor Yellow
+Write-Host "`nYou can close this window. The processes keep running until stop_translator.bat is used."

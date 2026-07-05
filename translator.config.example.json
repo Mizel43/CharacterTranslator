@@ -1,7 +1,6 @@
 {
-  "frontendUrl": "https://YOUR_GITHUB_NAME.github.io/qwen-character-translator/",
+  "frontendUrl": "",
   "allowedOrigins": [
-    "https://YOUR_GITHUB_NAME.github.io",
     "http://localhost:4173",
     "http://127.0.0.1:4173"
   ],
@@ -14,5 +13,13 @@
   "rateLimit": {
     "windowMs": 600000,
     "max": 30
+  },
+  "auth": {
+    "pairingCodeTtlMs": 300000,
+    "sessionTtlMs": 28800000,
+    "rateLimit": {
+      "windowMs": 600000,
+      "max": 12
+    }
   }
 }

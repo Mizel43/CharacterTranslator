@@ -1,10 +1,10 @@
 {
   "name": "Qwen Character Translator",
-  "short_name": "Translator",
-  "description": "Переводчик на естественный американский английский с голосами персонажей.",
+  "short_name": "QCT Info",
+  "description": "Public information page for the self-hosted Qwen Character Translator.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0b1020",
+  "background_color": "#10151d",
   "theme_color": "#111827",
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }

@@ -24,6 +24,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Gateway dependencies
+        working-directory: gateway
+        run: npm ci
+
+      - name: Run tests
+        working-directory: gateway
+        run: npm test
+
+      - name: Syntax checks
+        working-directory: gateway
+        run: npm run check
+
+      - name: Validate Pages artifact
+        run: |
+          test -f docs/index.html
+          test -f docs/.nojekyll
+          if [ -f docs/style-config.json ]; then
+            echo "docs/style-config.json must not be deployed"
+            exit 1
+          fi
+          if grep -R -n -E "accessToken|Authorization: Bearer|/api/translate|/api/session/claim" docs; then
+            echo "Forbidden client logic found in docs/"
+            exit 1
+          fi
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

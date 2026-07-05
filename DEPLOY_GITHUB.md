@@ -1,50 +1,79 @@
-# Публикация на GitHub Pages
+# Deploying GitHub Pages
 
-## Вариант через сайт GitHub
+GitHub Pages now deploys only the safe public page from `docs/`.
 
-1. Создайте новый публичный репозиторий, например `qwen-character-translator`.
-2. Загрузите содержимое этой папки в корень репозитория.
-3. Откройте **Settings → Pages**.
-4. В разделе **Build and deployment → Source** выберите **GitHub Actions**.
-5. Откройте вкладку **Actions** и дождитесь успешного выполнения `Deploy GitHub Pages`.
-6. GitHub покажет адрес вида:
+It does not host the working translator UI and it must not contain a Gateway API client, runtime tunnel URL, access token, or pairing secret.
+
+## What gets deployed
+
+Only the `docs/` artifact:
+
+- public project description;
+- local setup and launch instructions;
+- links to repository docs;
+- cache cleanup for the old Pages client.
+
+## What does not get deployed
+
+- `gateway/ui/`
+- `translator.config.json`
+- runtime tunnel URLs
+- pairing links
+- Qwen session data
+- logs
+- `data/`, `tools/`, `vendor/FreeQwenApi/`
+
+## GitHub setup
+
+1. Push the repository to GitHub.
+2. Open **Settings -> Pages**.
+3. In **Build and deployment -> Source**, choose **GitHub Actions**.
+4. Wait for the `Deploy GitHub Pages` workflow to finish successfully.
+
+Repository:
+
+`https://github.com/Mizel43/CharacterTranslator`
+
+Expected Pages URL:
+
+`https://mizel43.github.io/CharacterTranslator/`
+
+## Workflow behavior
+
+Before deploy, GitHub Actions now:
+
+- installs Gateway dependencies with `npm ci`;
+- runs `npm test`;
+- runs syntax checks with `npm run check`;
+- verifies `docs/index.html` and `docs/.nojekyll`;
+- rejects forbidden Pages artifact content such as secret-bearing client code.
+
+## After deploy
+
+After Pages publish succeeds:
+
+1. Open the public Pages URL and confirm it shows only the information page.
+2. Start the local translator with `start_translator.bat`.
+3. Use the QR or copied `/connect#code=...` link from the local machine.
+4. Verify the real app opens through the tunnel-hosted `/app/`.
+
+## Pre-push sanity list
+
+Check that these are not staged:
 
 ```text
-https://USERNAME.github.io/qwen-character-translator/
-```
-
-7. Впишите этот адрес в `translator.config.json` на компьютере.
-8. В `allowedOrigins` впишите:
-
-```text
-https://USERNAME.github.io
-```
-
-Путь `/qwen-character-translator/` в `allowedOrigins` не добавляется.
-
-## Вариант через Git
-
-```bash
-git init
-git add .
-git commit -m "Initial MVP"
-git branch -M main
-git remote add origin https://github.com/USERNAME/qwen-character-translator.git
-git push -u origin main
-```
-
-После каждого `git push` GitHub Actions автоматически опубликует свежую версию папки `web`.
-
-## Что нельзя загружать
-
-Проверьте, что в коммит не попали:
-
-```text
-data/access-token.txt
-vendor/FreeQwenApi/session/
-vendor/FreeQwenApi/.env
-tools/cloudflared.exe
+translator.config.json
+data/
 logs/
+tools/
+vendor/FreeQwenApi/
 ```
 
-Они уже находятся в `.gitignore`, но при ручной загрузке через браузер GitHub `.gitignore` не фильтрует выбранные вами файлы.
+Also verify that `docs/` does not contain:
+
+```text
+accessToken
+Authorization: Bearer
+/api/translate client logic
+style-config.json
+```
