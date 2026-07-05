@@ -1,7 +1,11 @@
-import { buildStylePlan } from './style-engine.js';
+import { buildStylePlan, describeControlDelta } from './style-engine.js';
 import { loadStyleConfig } from './style-config.js';
 
 export function buildMessages(input) {
+  return input.direction === 'en-ru' ? buildEnRuMessages(input) : buildRuEnMessages(input);
+}
+
+export function buildRuEnMessages(input) {
   const config = loadStyleConfig();
   const stylePlan = buildStylePlan(input, config);
   const actionInstruction = config.actions?.[input.action] || config.actions.translate;
@@ -67,21 +71,64 @@ Return only one finished American English version.`.trim();
   ];
 }
 
-function describeControlDelta(previousControls = {}, controls = {}) {
-  return Object.keys(controls)
-    .filter((id) => typeof previousControls[id] === 'number' && previousControls[id] !== controls[id])
-    .map((id) => `${id} ${previousControls[id]} -> ${controls[id]}`);
+export function buildEnRuMessages(input) {
+  const system = [
+    'You are an expert translator of contemporary American English into natural contemporary Russian.',
+    'Translate the complete message by meaning and communicative intent, not word-for-word.',
+    'Correctly interpret casual American speech, contractions, idioms, phrasal verbs, texting language, internet slang, profanity, teasing, flirtation, sarcasm, irony, and sexual subtext.',
+    'Write the Russian phrase that a native Russian speaker would naturally use to produce the same meaning, tone, relationship signal, and emotional effect.',
+    'The message was written by another person. Never rewrite it in the voice of the user\'s character and never use character, preset, priority, or ToneShift settings.',
+    'Preserve the source meaning. Do not soften, intensify, censor, embellish, explain, moralize, or add context.',
+    'Preserve names, usernames, links, product names, emojis, line breaks, and intentional ambiguity where possible. Use the entire supplied message as context.',
+    'Return exactly one finished Russian translation. Return no prefix, quotation marks, notes, alternatives, transliteration, or explanation.',
+  ].join(' ');
+
+  const user = [
+    'English message:',
+    '',
+    input.text,
+    '',
+    'Return one natural Russian translation only.',
+  ].join('\n');
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
 }
 
 export function cleanModelOutput(raw) {
   let text = String(raw ?? '').trim();
   if (!text) throw new Error('Qwen returned an empty response.');
 
-  text = text.replace(/^```(?:text|english)?\s*/i, '').replace(/\s*```$/, '').trim();
-  text = text.replace(/^(translation|english|result|answer)\s*:\s*/i, '').trim();
+  text = text.replace(/^```[\w-]*\s*/i, '').replace(/\s*```$/, '').trim();
 
-  if ((text.startsWith('“') && text.endsWith('”')) || (text.startsWith('"') && text.endsWith('"'))) {
-    text = text.slice(1, -1).trim();
+  const wrapperPrefixes = [
+    /^(translation|english|russian|result|answer)\s*:\s*/i,
+    /^(перевод|русский|результат|ответ)\s*:\s*/i,
+  ];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const pattern of wrapperPrefixes) {
+      if (pattern.test(text)) {
+        text = text.replace(pattern, '').trim();
+        changed = true;
+      }
+    }
+  }
+
+  const quotePairs = [
+    ['вЂњ', 'вЂќ'],
+    ['"', '"'],
+    ['“', '”'],
+    ['«', '»'],
+  ];
+  for (const [left, right] of quotePairs) {
+    if (text.startsWith(left) && text.endsWith(right)) {
+      text = text.slice(left.length, text.length - right.length).trim();
+      break;
+    }
   }
 
   return text;

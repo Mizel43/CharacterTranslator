@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadStyleConfig } from '../gateway/style-config.js';
-import { validateCandidate } from '../gateway/validator.js';
+import { validateCandidate, validateEnRuTranslation } from '../gateway/validator.js';
 
 const baseInput = {
   action: 'alternative',
@@ -31,4 +31,24 @@ test('flags more_vulgar without marker', () => {
   }, loadStyleConfig());
   assert.equal(result.ok, false);
   assert.ok(result.reasons.some((reason) => reason.includes('vulgar')));
+});
+
+test('en-ru validator rejects explanations, untranslated English, and alternative lists', () => {
+  const explanation = validateEnRuTranslation('Here is the Russian translation: Привет', 'hey you');
+  assert.equal(explanation.ok, false);
+  assert.ok(explanation.reasons.some((reason) => reason.includes('explanation')));
+
+  const untranslated = validateEnRuTranslation('hey you', 'hey you');
+  assert.equal(untranslated.ok, false);
+  assert.ok(untranslated.reasons.some((reason) => reason.includes('translation')));
+
+  const alternatives = validateEnRuTranslation('1. Привет\n2. Эй, ты', 'hey you');
+  assert.equal(alternatives.ok, false);
+  assert.ok(alternatives.reasons.some((reason) => reason.includes('alternatives')));
+});
+
+test('en-ru validator catches the reported hey you calque', () => {
+  const result = validateEnRuTranslation('привет, ты', 'hey you');
+  assert.equal(result.ok, false);
+  assert.ok(result.reasons.some((reason) => reason.includes('calque')));
 });

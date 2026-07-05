@@ -1,7 +1,46 @@
 import { apiFetch, clearSessionArtifacts, hydrateCsrfToken } from './api.js';
 import { createBlankProfile, prepareImportedProfiles, splitLines } from './profiles.js';
-import { loadProfiles, loadSelectedProfileId, loadUiState, purgeLegacySecrets, saveProfiles, saveSelectedProfileId, saveUiState } from './state.js';
+import {
+  loadProfiles,
+  loadSelectedProfileId,
+  loadUiState,
+  loadWorkspaceState,
+  purgeLegacySecrets,
+  saveProfiles,
+  saveSelectedProfileId,
+  saveUiState,
+  saveWorkspaceState,
+} from './state.js';
+import { buildTranslateRequest } from './request-payload.js';
 import { CONTROL_IDS, applyPresetToInputs, readControls, syncControlLabels, updateControlOutputs } from './style-controls.js';
+
+const DIRECTIONS = ['ru-en', 'en-ru'];
+const DIRECTION_CONFIG = {
+  'ru-en': {
+    sourceLabel: 'Русский текст',
+    sourcePlaceholder: 'Напишите фразу по-русски...',
+    sourceEmptyError: 'Введите фразу по-русски.',
+    sourceHint: 'Ctrl+Enter — перевести',
+    translateLabel: 'Перевести на английский',
+    translateBusyLabel: 'Перевожу...',
+    alternativeBusyLabel: 'Ищу другой вариант...',
+    clearLabel: 'Стереть',
+    resultLabel: 'Результат на английском',
+    copySuccess: 'Скопировано.',
+  },
+  'en-ru': {
+    sourceLabel: 'English message',
+    sourcePlaceholder: 'Paste the English message here...',
+    sourceEmptyError: 'Enter an English message first.',
+    sourceHint: 'Ctrl+Enter — перевести',
+    translateLabel: 'Перевести',
+    translateBusyLabel: 'Перевожу на русский...',
+    alternativeBusyLabel: 'Перевожу на русский...',
+    clearLabel: 'Стереть',
+    resultLabel: 'Перевод на русский',
+    copySuccess: 'Скопировано.',
+  },
+};
 
 const fallbackStyleConfig = {
   schemaVersion: 2,
@@ -19,10 +58,20 @@ const fallbackStyleConfig = {
 
 const $ = (selector) => document.querySelector(selector);
 const elements = {
+  directionTabs: [...document.querySelectorAll('[role="tab"][data-direction]')],
+  modePanels: {
+    'ru-en': $('#mode-panel-ru-en'),
+    'en-ru': $('#mode-panel-en-ru'),
+  },
+  ruEnOnly: [...document.querySelectorAll('[data-ru-en-only]')],
+  ruEnActions: [...document.querySelectorAll('[data-ru-en-action]')],
   profileSelect: $('#profileSelect'),
   profileSummary: $('#profileSummary'),
+  sourceLabel: $('#sourceLabel'),
   sourceText: $('#sourceText'),
+  sourceHint: $('#sourceHint'),
   charCount: $('#charCount'),
+  clearSource: $('#clearSourceButton'),
   preset: $('#presetSelect'),
   presetDirty: $('#presetDirty'),
   priority: $('#prioritySelect'),
@@ -31,6 +80,7 @@ const elements = {
   resultCard: $('#resultCard'),
   resultText: $('#resultText'),
   resultModel: $('#resultModel'),
+  resultHeadingLabel: $('#resultHeadingLabel'),
   messageBox: $('#messageBox'),
   connectionDot: $('#connectionDot'),
   connectionText: $('#connectionText'),
@@ -42,18 +92,39 @@ let styleConfig = fallbackStyleConfig;
 let profiles = loadProfiles();
 let selectedProfileId = loadSelectedProfileId(profiles[0]?.id);
 let uiState = loadUiState();
-let lastRequest = null;
-let previousOutputs = [];
+let workspaceState = loadWorkspaceState();
 let controlsDirty = false;
+let busyDirection = '';
 
-function persistState() {
+function currentDirection() {
+  return workspaceState.activeDirection;
+}
+
+function currentWorkspace() {
+  return workspaceState.workspaces[currentDirection()];
+}
+
+function ruEnWorkspace() {
+  return workspaceState.workspaces['ru-en'];
+}
+
+function currentProfile() {
+  return profiles.find((profile) => profile.id === selectedProfileId) || profiles[0];
+}
+
+function persistLocalState() {
   saveProfiles(profiles);
   saveSelectedProfileId(selectedProfileId);
   saveUiState(uiState);
 }
 
-function currentProfile() {
-  return profiles.find((profile) => profile.id === selectedProfileId) || profiles[0];
+function persistWorkspace() {
+  saveWorkspaceState(workspaceState);
+}
+
+function persistAll() {
+  persistLocalState();
+  persistWorkspace();
 }
 
 function escapeHtml(value) {
@@ -72,10 +143,16 @@ function hideMessage() {
   elements.messageBox.classList.add('hidden');
 }
 
-function setBusy(busy, label = 'Перевожу...') {
-  elements.translate.disabled = busy;
-  elements.translate.textContent = busy ? label : 'Перевести';
-  for (const button of document.querySelectorAll('#resultCard button')) button.disabled = busy;
+function updateSourceMeta() {
+  const config = DIRECTION_CONFIG[currentDirection()];
+  elements.charCount.textContent = elements.sourceText.value.length;
+  elements.sourceHint.innerHTML = `<span id="charCount">${elements.sourceText.value.length}</span>/4000 • ${config.sourceHint}`;
+  elements.charCount = elements.sourceHint.querySelector('#charCount');
+}
+
+function updatePresetDirtyMarker() {
+  const shouldShow = currentDirection() === 'ru-en' && controlsDirty;
+  elements.presetDirty?.classList.toggle('hidden', !shouldShow);
 }
 
 function setConnection(state, text) {
@@ -84,14 +161,54 @@ function setConnection(state, text) {
   elements.connectionText.textContent = text;
 }
 
-async function loadStyleConfig() {
-  try {
-    const response = await fetch('/app/style-config.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    styleConfig = await response.json();
-  } catch {
-    styleConfig = fallbackStyleConfig;
+function updateResultActions() {
+  const direction = currentDirection();
+  const hasResult = Boolean(currentWorkspace().resultText);
+  const busy = busyDirection === direction;
+
+  document.getElementById('copyResult').disabled = busy || !hasResult;
+  for (const button of elements.ruEnActions) {
+    const enabled = direction === 'ru-en';
+    button.classList.toggle('hidden', !enabled);
+    button.disabled = busy || !hasResult || !enabled;
   }
+}
+
+function updateTranslateButton(action = 'translate') {
+  const config = DIRECTION_CONFIG[currentDirection()];
+  const busy = busyDirection === currentDirection();
+  const label = action === 'alternative' ? config.alternativeBusyLabel : config.translateBusyLabel;
+  elements.translate.textContent = busy ? label : config.translateLabel;
+  elements.translate.disabled = busy;
+}
+
+function updateClearButton() {
+  elements.clearSource.disabled = busyDirection === currentDirection() || !elements.sourceText.value;
+}
+
+function syncModelSelect(defaultModel = '') {
+  const workspace = currentWorkspace();
+  const options = [...elements.model.options].map((option) => option.value);
+  const fallbackModel = options.includes(defaultModel) ? defaultModel : (options[0] || 'qwen3.7-max');
+  if (!options.length) return;
+
+  if (!options.includes(workspace.model)) {
+    workspace.model = fallbackModel;
+    persistWorkspace();
+  }
+
+  elements.model.value = workspace.model;
+}
+
+function renderProfileSummary() {
+  const profile = currentProfile();
+  if (!profile) return;
+
+  elements.profileSummary.innerHTML = `
+    <strong>${escapeHtml(profile.name)}, ${profile.age}</strong><br>
+    ${escapeHtml(profile.region || 'США')} • ${escapeHtml(profile.genderVoice || 'естественный голос')}<br>
+    ${escapeHtml(profile.personality || 'Характер не указан')}<br>
+    <small>${profile.examples?.length || 0} примеров речи</small>`;
 }
 
 function renderProfiles() {
@@ -108,18 +225,7 @@ function renderProfiles() {
   }
 
   renderProfileSummary();
-  persistState();
-}
-
-function renderProfileSummary() {
-  const profile = currentProfile();
-  if (!profile) return;
-
-  elements.profileSummary.innerHTML = `
-    <strong>${escapeHtml(profile.name)}, ${profile.age}</strong><br>
-    ${escapeHtml(profile.region || 'США')} • ${escapeHtml(profile.genderVoice || 'естественный голос')}<br>
-    ${escapeHtml(profile.personality || 'Характер не указан')}<br>
-    <small>${profile.examples?.length || 0} примеров речи</small>`;
+  persistLocalState();
 }
 
 function applyPreset(presetId, resetDirty = true) {
@@ -129,10 +235,15 @@ function applyPreset(presetId, resetDirty = true) {
   applyPresetToInputs(styleConfig, presetId);
   uiState.presetId = presetId;
   controlsDirty = false;
-  if (resetDirty) previousOutputs = [];
+  if (resetDirty) {
+    ruEnWorkspace().previousOutputs = [];
+    ruEnWorkspace().lastRequest = null;
+    persistWorkspace();
+  }
   updateControlOutputs(styleConfig);
-  persistState();
+  persistLocalState();
   elements.preset.value = uiState.presetId;
+  updatePresetDirtyMarker();
 }
 
 function renderPresets() {
@@ -156,30 +267,100 @@ function currentControls() {
   return readControls();
 }
 
-function collectRequest(action = 'translate') {
-  const text = elements.sourceText.value.trim();
-  if (!text) throw new Error('Введите фразу по-русски.');
+function renderTabs() {
+  const direction = currentDirection();
+  for (const tab of elements.directionTabs) {
+    const active = tab.dataset.direction === direction;
+    tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    tab.tabIndex = active ? 0 : -1;
+    tab.disabled = Boolean(busyDirection);
+    tab.classList.toggle('active', active);
+  }
 
-  return {
+  for (const [key, panel] of Object.entries(elements.modePanels)) {
+    panel.classList.toggle('hidden', key !== direction);
+  }
+}
+
+function renderWorkspace() {
+  const direction = currentDirection();
+  const workspace = currentWorkspace();
+  const config = DIRECTION_CONFIG[direction];
+  const isRuEn = direction === 'ru-en';
+
+  renderTabs();
+  for (const element of elements.ruEnOnly) element.classList.toggle('hidden', !isRuEn);
+
+  elements.sourceLabel.textContent = config.sourceLabel;
+  elements.sourceText.placeholder = config.sourcePlaceholder;
+  elements.sourceText.value = workspace.sourceText || '';
+  elements.clearSource.textContent = config.clearLabel;
+  elements.resultHeadingLabel.textContent = config.resultLabel;
+
+  elements.resultText.textContent = workspace.resultText || '';
+  elements.resultModel.textContent = workspace.resultModel || '';
+  elements.resultCard.classList.toggle('hidden', !workspace.resultText);
+
+  syncModelSelect(workspace.model);
+  updateSourceMeta();
+  updateTranslateButton();
+  updateClearButton();
+  updateResultActions();
+  updatePresetDirtyMarker();
+}
+
+function setActiveDirection(direction) {
+  if (busyDirection || !DIRECTIONS.includes(direction) || direction === currentDirection()) return;
+  workspaceState.activeDirection = direction;
+  persistWorkspace();
+  hideMessage();
+  renderWorkspace();
+}
+
+function collectRequest(action = 'translate') {
+  const direction = currentDirection();
+  const workspace = currentWorkspace();
+  const text = elements.sourceText.value.trim();
+  if (!text) throw new Error(DIRECTION_CONFIG[direction].sourceEmptyError);
+
+  return buildTranslateRequest({
+    direction,
     text,
-    action,
     model: elements.model.value,
+    action,
     presetId: elements.preset.value,
     priority: elements.priority.value,
     controls: currentControls(),
     previous: {
-      output: elements.resultText.textContent || '',
-      outputs: previousOutputs,
-      controls: lastRequest?.controls || null,
+      output: workspace.resultText || '',
+      outputs: workspace.previousOutputs || [],
+      controls: workspace.lastRequest?.controls || null,
     },
     profile: currentProfile(),
-  };
+  });
+}
+
+function setBusy(busy, action = 'translate') {
+  busyDirection = busy ? currentDirection() : '';
+  updateTranslateButton(action);
+  updateClearButton();
+  updateResultActions();
+  renderTabs();
+}
+
+async function loadStyleConfig() {
+  try {
+    const response = await fetch('/app/style-config.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    styleConfig = await response.json();
+  } catch {
+    styleConfig = fallbackStyleConfig;
+  }
 }
 
 async function loadModels() {
   try {
     const data = await apiFetch('/api/models');
-    const selected = elements.model.value;
     const models = Array.isArray(data.models) && data.models.length ? data.models : [data.defaultModel];
     elements.model.innerHTML = '';
 
@@ -190,9 +371,16 @@ async function loadModels() {
       elements.model.append(option);
     }
 
-    elements.model.value = models.includes(selected) ? selected : data.defaultModel || models[0];
+    for (const direction of DIRECTIONS) {
+      const workspace = workspaceState.workspaces[direction];
+      if (!models.includes(workspace.model)) {
+        workspace.model = data.defaultModel || models[0];
+      }
+    }
+    persistWorkspace();
+    syncModelSelect(data.defaultModel || models[0]);
   } catch {
-    // Keep fallback models.
+    syncModelSelect(elements.model.value || 'qwen3.7-max');
   }
 }
 
@@ -220,6 +408,8 @@ async function checkConnection(showSuccess = false) {
 }
 
 async function translate(action = 'translate') {
+  if (currentDirection() === 'en-ru' && action !== 'translate') return;
+
   hideMessage();
   let request;
   try {
@@ -229,7 +419,7 @@ async function translate(action = 'translate') {
     return;
   }
 
-  setBusy(true, action === 'alternative' ? 'Ищу другой вариант...' : 'Перевожу...');
+  setBusy(true, action);
 
   try {
     const result = await apiFetch('/api/translate', {
@@ -237,13 +427,22 @@ async function translate(action = 'translate') {
       body: JSON.stringify(request),
     });
 
-    elements.resultText.textContent = result.text;
-    elements.resultModel.textContent = result.model;
-    elements.resultCard.classList.remove('hidden');
-    previousOutputs = [result.text, ...previousOutputs.filter((item) => item !== result.text)].slice(0, 5);
-    lastRequest = { ...request, controls: request.controls };
-    controlsDirty = false;
-    updateControlOutputs(styleConfig);
+    const workspace = currentWorkspace();
+    workspace.sourceText = request.text;
+    workspace.resultText = result.text;
+    workspace.resultModel = result.model;
+    workspace.resultMeta = result.meta || null;
+    workspace.model = request.model || workspace.model;
+
+    if (currentDirection() === 'ru-en') {
+      workspace.previousOutputs = [result.text, ...workspace.previousOutputs.filter((item) => item !== result.text)].slice(0, 5);
+      workspace.lastRequest = { controls: request.controls };
+      controlsDirty = false;
+      updateControlOutputs(styleConfig);
+    }
+
+    persistWorkspace();
+    renderWorkspace();
     setConnection('ok', 'Сессия активна');
   } catch (error) {
     showMessage(error.message, 'error');
@@ -253,8 +452,12 @@ async function translate(action = 'translate') {
   }
 }
 
-function updatePresetDirtyMarker() {
-  elements.presetDirty?.classList.toggle('hidden', !controlsDirty);
+function clearSourceText() {
+  if (!elements.sourceText.value || busyDirection === currentDirection()) return;
+  const workspace = currentWorkspace();
+  workspace.sourceText = '';
+  persistWorkspace();
+  renderWorkspace();
 }
 
 function openProfileDialog(profile = null, duplicate = false) {
@@ -371,24 +574,56 @@ async function logout() {
   location.assign('/connect');
 }
 
+function handleTabKeydown(event) {
+  if (busyDirection) return;
+  const index = elements.directionTabs.indexOf(event.currentTarget);
+  if (index < 0) return;
+
+  if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+    const delta = event.key === 'ArrowRight' ? 1 : -1;
+    const nextIndex = (index + delta + elements.directionTabs.length) % elements.directionTabs.length;
+    elements.directionTabs[nextIndex].focus();
+    event.preventDefault();
+    return;
+  }
+
+  if (event.key === 'Enter' || event.key === ' ') {
+    setActiveDirection(event.currentTarget.dataset.direction);
+    event.preventDefault();
+  }
+}
+
 function bindEvents() {
+  elements.directionTabs.forEach((tab) => {
+    tab.addEventListener('click', () => setActiveDirection(tab.dataset.direction));
+    tab.addEventListener('keydown', handleTabKeydown);
+  });
+
   elements.profileSelect.addEventListener('change', () => {
     selectedProfileId = elements.profileSelect.value;
     renderProfileSummary();
-    persistState();
+    persistLocalState();
   });
 
   elements.preset.addEventListener('change', () => applyPreset(elements.preset.value));
   elements.priority.addEventListener('change', () => {
     uiState.priority = elements.priority.value;
-    persistState();
+    persistLocalState();
+  });
+  elements.model.addEventListener('change', () => {
+    currentWorkspace().model = elements.model.value;
+    persistWorkspace();
   });
   elements.sourceText.addEventListener('input', () => {
-    elements.charCount.textContent = elements.sourceText.value.length;
+    currentWorkspace().sourceText = elements.sourceText.value;
+    persistWorkspace();
+    updateSourceMeta();
+    updateClearButton();
   });
   elements.sourceText.addEventListener('keydown', (event) => {
     if (event.ctrlKey && event.key === 'Enter') translate('translate');
   });
+  elements.clearSource.addEventListener('click', clearSourceText);
   elements.translate.addEventListener('click', () => translate('translate'));
   elements.logoutButton.addEventListener('click', logout);
   document.getElementById('connectionButton').addEventListener('click', () => checkConnection(true));
@@ -410,8 +645,9 @@ function bindEvents() {
   document.getElementById('bolderResult').addEventListener('click', () => translate('bolder'));
   document.getElementById('moreVulgarResult').addEventListener('click', () => translate('more_vulgar'));
   document.getElementById('copyResult').addEventListener('click', async () => {
-    await navigator.clipboard.writeText(elements.resultText.textContent);
-    showMessage('Скопировано.');
+    if (!currentWorkspace().resultText) return;
+    await navigator.clipboard.writeText(currentWorkspace().resultText);
+    showMessage(DIRECTION_CONFIG[currentDirection()].copySuccess);
   });
 
   for (const id of CONTROL_IDS) {
@@ -438,9 +674,8 @@ async function init() {
   renderPresets();
   syncControlLabels(styleConfig);
   updateControlOutputs(styleConfig);
-  updatePresetDirtyMarker();
   bindEvents();
-  elements.charCount.textContent = elements.sourceText.value.length;
+  renderWorkspace();
   await checkConnection(false);
 }
 

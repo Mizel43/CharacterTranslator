@@ -26,7 +26,7 @@
   </header>
 
   <main class="layout">
-    <section class="panel character-panel">
+    <section class="panel character-panel" data-ru-en-only>
       <div class="section-heading">
         <div>
           <p class="eyebrow">Голос</p>
@@ -60,19 +60,59 @@
     </section>
 
     <section class="panel translator-panel">
+      <div class="mode-switch" role="tablist" aria-label="Режим перевода">
+        <button
+          id="tab-ru-en"
+          class="mode-tab"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="mode-panel-ru-en"
+          data-direction="ru-en"
+        >
+          <span class="mode-tab-direction">RU → EN</span>
+          <span class="mode-tab-caption">Написать</span>
+        </button>
+        <button
+          id="tab-en-ru"
+          class="mode-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="mode-panel-en-ru"
+          tabindex="-1"
+          data-direction="en-ru"
+        >
+          <span class="mode-tab-direction">EN → RU</span>
+          <span class="mode-tab-caption">Понять</span>
+        </button>
+      </div>
+
+      <section id="mode-panel-ru-en" class="mode-panel" role="tabpanel" aria-labelledby="tab-ru-en">
+        <p class="eyebrow">RU → EN</p>
+        <h2>Написать</h2>
+        <p class="lead">Использует Character Voice, Preset, Priority и ToneShift.</p>
+      </section>
+
+      <section id="mode-panel-en-ru" class="mode-panel hidden" role="tabpanel" aria-labelledby="tab-en-ru">
+        <p class="eyebrow">EN → RU</p>
+        <h2>Понять</h2>
+        <p class="lead">Переводит естественно, сохраняя смысл, тон, сленг и подтекст.</p>
+      </section>
+
       <div class="quick-grid">
-        <label class="field">
+        <label id="presetField" class="field" data-ru-en-only>
           <span>Пресет <small id="presetDirty" class="dirty-marker hidden">изменен</small></span>
           <select id="presetSelect"></select>
         </label>
-        <label class="field">
+        <label id="priorityField" class="field" data-ru-en-only>
           <span>Приоритет</span>
           <select id="prioritySelect">
             <option value="settings">Настройки сообщения</option>
             <option value="voice">Голос персонажа</option>
           </select>
         </label>
-        <label class="field">
+        <label id="modelField" class="field">
           <span>Модель</span>
           <select id="modelSelect">
             <option value="qwen3.7-max">qwen3.7-max</option>
@@ -81,7 +121,7 @@
         </label>
       </div>
 
-      <div class="sliders">
+      <div id="styleControls" class="sliders" data-ru-en-only>
         <label class="slider-field">
           <span><span data-control-label="slang">Сленг</span><button class="help-button" data-control-help="slang" type="button" aria-label="Подсказка">?</button></span>
           <input id="slang" type="range" min="0" max="4" value="1">
@@ -110,26 +150,29 @@
       </div>
 
       <label class="field source-field">
-        <span>Русский текст</span>
+        <span id="sourceLabel">Русский текст</span>
         <textarea id="sourceText" rows="6" maxlength="4000" placeholder="Напишите фразу по-русски..."></textarea>
-        <small><span id="charCount">0</span>/4000 • Ctrl+Enter — перевести</small>
+        <small id="sourceHint"><span id="charCount">0</span>/4000 • Ctrl+Enter — перевести</small>
       </label>
 
-      <button id="translateButton" class="primary-button" type="button">Перевести</button>
+      <div class="button-row wrap translator-actions">
+        <button id="clearSourceButton" class="ghost-button" type="button">Стереть</button>
+        <button id="translateButton" class="primary-button" type="button">Перевести на английский</button>
+      </div>
 
       <section id="resultCard" class="result-card hidden" aria-live="polite">
         <div class="result-heading">
-          <span>Результат</span>
+          <span id="resultHeadingLabel">Результат на английском</span>
           <span id="resultModel" class="model-badge"></span>
         </div>
         <p id="resultText"></p>
-        <div class="button-row wrap">
+        <div id="resultActions" class="button-row wrap">
           <button id="copyResult" class="primary-button compact" type="button">Копировать</button>
-          <button id="regenerateResult" class="secondary-button compact" type="button">По-другому</button>
-          <button id="shorterResult" class="ghost-button compact" type="button">Короче</button>
-          <button id="softerResult" class="ghost-button compact" type="button">Мягче</button>
-          <button id="bolderResult" class="ghost-button compact" type="button">Смелее</button>
-          <button id="moreVulgarResult" class="ghost-button compact" type="button">Вульгарнее</button>
+          <button id="regenerateResult" class="secondary-button compact" type="button" data-ru-en-action="alternative">По-другому</button>
+          <button id="shorterResult" class="ghost-button compact" type="button" data-ru-en-action="shorter">Короче</button>
+          <button id="softerResult" class="ghost-button compact" type="button" data-ru-en-action="softer">Мягче</button>
+          <button id="bolderResult" class="ghost-button compact" type="button" data-ru-en-action="bolder">Смелее</button>
+          <button id="moreVulgarResult" class="ghost-button compact" type="button" data-ru-en-action="more_vulgar">Вульгарнее</button>
         </div>
       </section>
 

@@ -39,7 +39,7 @@ function close(server) {
   return new Promise((resolve) => server.close(resolve));
 }
 
-test('app static page is served with CSP headers', async () => {
+test('app static page is served with CSP headers and tab UI', async () => {
   const { server } = createGatewayServer({
     config: makeConfig(),
     pairingCode: 'pairing-code-for-tests-123456',
@@ -59,7 +59,13 @@ test('app static page is served with CSP headers', async () => {
 
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-security-policy') || '', /default-src 'self'/);
-  assert.match(html, /Self-hosted переводчик/);
+  assert.match(html, /Self-hosted/i);
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /role="tab"/);
+  assert.match(html, /role="tabpanel"/);
+  assert.match(html, /data-direction="ru-en"/);
+  assert.match(html, /data-direction="en-ru"/);
+  assert.doesNotMatch(html, /букваль|дослов|слово в слово/i);
 
   await close(server);
 });
@@ -82,4 +88,15 @@ test('ui local storage code does not store access token', () => {
   assert.doesNotMatch(uiState, /localStorage\.setItem\([^)]*accessToken/i);
   assert.doesNotMatch(uiApp, /localStorage\.setItem\([^)]*accessToken/i);
   assert.doesNotMatch(uiApi, /Authorization/i);
+});
+
+test('workspace state is isolated in sessionStorage with the new key', () => {
+  const uiState = fs.readFileSync(path.join(ROOT, 'gateway', 'ui', 'state.js'), 'utf8');
+  const uiApp = fs.readFileSync(path.join(ROOT, 'gateway', 'ui', 'app.js'), 'utf8');
+
+  assert.match(uiState, /qct\.workspace\.v1/);
+  assert.match(uiState, /sessionStorage\.setItem/);
+  assert.match(uiState, /sessionStorage, SESSION_STORAGE\.workspace/);
+  assert.doesNotMatch(uiApp, /localStorage\.setItem\([^)]*sourceText/i);
+  assert.doesNotMatch(uiApp, /localStorage\.setItem\([^)]*resultText/i);
 });

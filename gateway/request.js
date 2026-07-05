@@ -1,6 +1,8 @@
 import { loadStyleConfig } from './style-config.js';
 import { CONTROL_IDS, describeControlDelta, getPreset, mergePresetControls } from './style-engine.js';
 
+export const TRANSLATION_DIRECTIONS = ['ru-en', 'en-ru'];
+
 function clamp(value, min, max) {
   const number = Number(value);
   if (!Number.isFinite(number)) return min;
@@ -19,12 +21,31 @@ function cleanString(value, maxLength = 500) {
   return String(value ?? '').trim().slice(0, maxLength);
 }
 
-function normalizeAction(action) {
+function createBadRequest(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
+
+function normalizeDirection(direction) {
+  const normalized = cleanString(direction, 16).toLowerCase();
+  if (!normalized) return 'ru-en';
+  if (TRANSLATION_DIRECTIONS.includes(normalized)) return normalized;
+  throw createBadRequest('Unsupported translation direction. Use "ru-en" or "en-ru".');
+}
+
+function normalizeRuEnAction(action) {
   const aliases = { regenerate: 'alternative' };
   const normalized = aliases[action] || action;
   return ['translate', 'alternative', 'shorter', 'softer', 'bolder', 'more_vulgar', 'apply_settings'].includes(normalized)
     ? normalized
     : 'translate';
+}
+
+function normalizeEnRuAction(action) {
+  const normalized = cleanString(action, 40);
+  if (!normalized || normalized === 'translate') return 'translate';
+  throw createBadRequest('Only the "translate" action is supported for English-to-Russian mode.');
 }
 
 function normalizePrevious(previous) {
@@ -44,7 +65,7 @@ function normalizePrevious(previous) {
 function normalizeProfile(profile = {}) {
   const rawAge = Number(profile.age ?? 18);
   if (!Number.isFinite(rawAge) || rawAge < 18) {
-    throw new Error('Only adult characters aged 18+ are supported.');
+    throw createBadRequest('Only adult characters aged 18+ are supported.');
   }
 
   return {
@@ -66,10 +87,15 @@ function normalizeProfile(profile = {}) {
   };
 }
 
-export function normalizeRequest(body, maxInputChars) {
+function normalizeText(value, maxInputChars, emptyMessage) {
+  const text = cleanString(value, maxInputChars);
+  if (!text) throw createBadRequest(emptyMessage);
+  return text;
+}
+
+export function normalizeRuEnRequest(body, maxInputChars, direction = 'ru-en') {
   const config = loadStyleConfig();
-  const text = cleanString(body?.text, maxInputChars);
-  if (!text) throw new Error('Enter Russian source text first.');
+  const text = normalizeText(body?.text, maxInputChars, 'Enter Russian source text first.');
 
   const profile = normalizeProfile(body?.profile && typeof body.profile === 'object' ? body.profile : {});
   const requestedPreset = cleanString(body?.presetId || body?.preset, 80);
@@ -82,10 +108,11 @@ export function normalizeRequest(body, maxInputChars) {
   );
   const controls = mergePresetControls(preset.id, providedControls, config);
   const previous = normalizePrevious(body?.previous);
-  const action = normalizeAction(body?.action);
+  const action = normalizeRuEnAction(body?.action);
   const priority = body?.priority === 'voice' ? 'voice' : 'settings';
 
   return {
+    direction,
     text,
     model: cleanString(body?.model, 100),
     action: action === 'translate' && previous.output && previous.controls && describeControlDelta(previous.controls, controls).length
@@ -97,4 +124,20 @@ export function normalizeRequest(body, maxInputChars) {
     previous,
     profile,
   };
+}
+
+export function normalizeEnRuRequest(body, maxInputChars, direction = 'en-ru') {
+  return {
+    direction,
+    text: normalizeText(body?.text, maxInputChars, 'Enter English source text first.'),
+    model: cleanString(body?.model, 100),
+    action: normalizeEnRuAction(body?.action),
+  };
+}
+
+export function normalizeRequest(body, maxInputChars) {
+  const direction = normalizeDirection(body?.direction);
+  return direction === 'en-ru'
+    ? normalizeEnRuRequest(body, maxInputChars, direction)
+    : normalizeRuEnRequest(body, maxInputChars, direction);
 }

@@ -1,6 +1,9 @@
 # Qwen Character Translator
 
-Self-hosted translator from Russian to natural American English with character profiles, style controls, and a local Gateway in front of FreeQwenApi.
+Self-hosted bidirectional translator with a local Gateway in front of FreeQwenApi.
+
+- `RU -> EN`: adaptive rewrite into natural American English with character profiles, presets, priority, and style controls.
+- `EN -> RU`: natural English-to-Russian translation that preserves meaning, tone, slang, profanity, ambiguity, emojis, and line breaks without using character settings.
 
 ## Security model
 
@@ -35,6 +38,15 @@ Qwen Chat
 ```
 
 GitHub Pages stays public, but it only hosts project info and setup instructions.
+
+## Translation modes
+
+The live app served from `gateway/ui/` now supports two separate workspaces:
+
+- `RU -> EN / "Написать"` keeps the existing character-driven workflow with presets, profile voice, ToneShift controls, alternative rewrites, and delta-based `apply_settings`.
+- `EN -> RU / "Понять"` sends only `direction`, `text`, `model`, and `action: "translate"` to the Gateway and returns a single Russian translation without style actions.
+
+Text, results, and in-flight workspace state are stored in browser `sessionStorage` for the current browser session. Character profiles and persistent UI preferences remain in `localStorage`.
 
 ## What changed in the launch flow
 

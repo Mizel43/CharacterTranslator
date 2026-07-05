@@ -1,7 +1,62 @@
 import { CONTROL_IDS } from './style-engine.js';
 
-const BANNED_OUTPUT_PATTERNS = [/^translation\s*:/i, /^english\s*:/i, /^result\s*:/i, /```/];
+const BANNED_OUTPUT_PATTERNS = [
+  /^translation\s*:/i,
+  /^english\s*:/i,
+  /^russian\s*:/i,
+  /^result\s*:/i,
+  /^answer\s*:/i,
+  /^перевод\s*:/i,
+  /^результат\s*:/i,
+  /^ответ\s*:/i,
+  /```/,
+];
 const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu;
+const CYRILLIC_RE = /[А-Яа-яЁё]/;
+const LATIN_WORD_RE = /[A-Za-z]+(?:'[A-Za-z]+)?/g;
+const URL_RE = /https?:\/\/\S+/gi;
+const HANDLE_RE = /[@#][\p{L}\p{N}_-]+/gu;
+const LITERAL_EXPLANATION_PATTERNS = [
+  /^here(?:'s| is)\b/i,
+  /^the (?:corrected )?(?:russian )?translation\b/i,
+  /^this (?:means|translates to)\b/i,
+  /^in russian[,:\s]/i,
+  /^note\b/i,
+  /^explanation\b/i,
+];
+const EN_RU_REFUSAL_PATTERNS = [
+  /^i(?:'m| am)?\s+sorry\b/i,
+  /^sorry\b/i,
+  /^as an ai\b/i,
+  /^i can(?:not|'t)\b/i,
+  /^не могу\b/i,
+  /^извин(?:и|ите|ите,|яюсь)\b/i,
+  /^как ии\b/i,
+];
+const COMMON_TRANSLATABLE_ENGLISH = new Set([
+  'hey',
+  'hi',
+  'hello',
+  'sure',
+  'okay',
+  'ok',
+  'thanks',
+  'sorry',
+  'later',
+  'wild',
+  'down',
+  'wish',
+  'come',
+  'wait',
+  'good',
+  'bad',
+  'miss',
+  'cap',
+  'lowkey',
+]);
+const EN_RU_CALQUE_PATTERNS = [
+  /^привет\s*,\s*(?:ты|вы)(?:[!?.\s]|$)/i,
+];
 
 function normalizeText(value) {
   return String(value || '')
@@ -25,6 +80,43 @@ function diceSimilarity(a, b) {
 function hasMarker(text, markers = []) {
   const normalized = normalizeText(text);
   return markers.some((marker) => normalized.includes(normalizeText(marker)));
+}
+
+function englishWords(text) {
+  return String(text || '').match(LATIN_WORD_RE) || [];
+}
+
+function countBulletLines(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^(?:[-*•]|\d+[.)])\s+/.test(line)).length;
+}
+
+function sourceNeedsRussianScript(sourceText) {
+  const sanitized = String(sourceText || '')
+    .replace(URL_RE, ' ')
+    .replace(HANDLE_RE, ' ')
+    .trim();
+  const words = englishWords(sanitized);
+  if (!words.length) return false;
+  if (words.length >= 2) return true;
+  return COMMON_TRANSLATABLE_ENGLISH.has(words[0].toLowerCase());
+}
+
+function containsAlternativeList(text, sourceText) {
+  if (/(?:^|\n)(?:вариант|варианты|option|options)\b/i.test(text)) return true;
+  return countBulletLines(text) >= 2 && countBulletLines(sourceText) < 2;
+}
+
+function looksUntranslatedEnglish(text, sourceText) {
+  if (!sourceText || CYRILLIC_RE.test(text) || !/[A-Za-z]/.test(text)) return false;
+  const similarity = diceSimilarity(text, sourceText);
+  if (similarity >= 0.72) return true;
+
+  const sourceWords = englishWords(sourceText).length;
+  const candidateWords = englishWords(text).length;
+  return sourceWords >= 2 && candidateWords >= 2;
 }
 
 export function validateCandidate(candidate, input, styleConfig) {
@@ -81,6 +173,45 @@ export function buildCorrectionMessages(input, candidate, reasons, originalMessa
         'Revise the draft once. Return only the final English text.',
         `Correction reasons: ${reasons.join('; ')}.`,
         'Keep the Russian source meaning, obey the style settings, and avoid repeating previous outputs.',
+      ].join(' '),
+    },
+  ];
+}
+
+export function validateEnRuTranslation(candidate, sourceText = '') {
+  const reasons = [];
+  const text = String(candidate || '').trim();
+
+  if (!text) reasons.push('empty output');
+  if (BANNED_OUTPUT_PATTERNS.some((pattern) => pattern.test(text))) reasons.push('wrapper text or markdown fence');
+
+  const firstLine = text.split(/\r?\n/, 1)[0] || '';
+  if (LITERAL_EXPLANATION_PATTERNS.some((pattern) => pattern.test(firstLine))) {
+    reasons.push('explanation instead of direct translation');
+  }
+  if (containsAlternativeList(text, sourceText)) reasons.push('multiple alternatives or list formatting');
+  if (EN_RU_REFUSAL_PATTERNS.some((pattern) => pattern.test(firstLine))) reasons.push('model refusal or meta response');
+  if (sourceNeedsRussianScript(sourceText) && !CYRILLIC_RE.test(text)) reasons.push('missing Cyrillic in Russian translation');
+  if (looksUntranslatedEnglish(text, sourceText)) reasons.push('english source was returned without translation');
+  if (EN_RU_CALQUE_PATTERNS.some((pattern) => pattern.test(text))) reasons.push('obvious English calque');
+
+  return { ok: reasons.length === 0, reasons };
+}
+
+export function buildEnRuCorrectionMessages(originalMessages, candidate) {
+  return [
+    ...originalMessages,
+    {
+      role: 'assistant',
+      content: candidate,
+    },
+    {
+      role: 'user',
+      content: [
+        'Rewrite the result as one natural Russian translation by meaning.',
+        'Keep the exact intent, tone, slang, and subtext.',
+        'Remove literal English calques and all explanations.',
+        'Return only the final Russian translation.',
       ].join(' '),
     },
   ];
