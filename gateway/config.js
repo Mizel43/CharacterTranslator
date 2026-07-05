@@ -42,6 +42,7 @@ export function loadConfig(configPathOverride) {
     rateLimitWindowMs: Number(raw.rateLimit?.windowMs || 600000),
     rateLimitMax: Number(raw.rateLimit?.max || 30),
     pairingCodeTtlMs: Number(raw.auth?.pairingCodeTtlMs || raw.pairingCodeTtlMs || 300000),
+    pairingMaxClaims: Number(raw.auth?.pairingMaxClaims || raw.pairingMaxClaims || 4),
     sessionTtlMs: Number(raw.auth?.sessionTtlMs || raw.sessionTtlMs || 28800000),
     authRateLimitWindowMs: Number(raw.auth?.rateLimit?.windowMs || raw.authRateLimitWindowMs || 600000),
     authRateLimitMax: Number(raw.auth?.rateLimit?.max || raw.authRateLimitMax || 12),

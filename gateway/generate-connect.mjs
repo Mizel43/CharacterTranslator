@@ -30,11 +30,11 @@ const escaped = connectUrl
   .replaceAll('"', '&quot;');
 
 const html = `<!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Подключить браузер</title>
+  <title>Connect browser</title>
   <style>
     body{font-family:system-ui,sans-serif;background:#111827;color:#f9fafb;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px}
     main{max-width:680px;text-align:center;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:28px}
@@ -42,18 +42,19 @@ const html = `<!doctype html>
     a{display:inline-block;margin-top:18px;background:#f9fafb;color:#111827;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700}
     p,li{color:#d1d5db;line-height:1.55;overflow-wrap:anywhere}
     ul{text-align:left}
+    code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
   </style>
 </head>
 <body><main>
-  <h1>Подключить браузер к локальному Gateway</h1>
-  <p>Отсканируйте QR-код телефоном или откройте ссылку на этом компьютере. Она ведет на <code>/connect#code=...</code>, создаёт короткоживущую сессию и дальше открывает рабочий интерфейс на <code>/app/</code>.</p>
+  <h1>Connect a browser to the local Gateway</h1>
+  <p>Scan the QR code on your phone or open the same link on this PC. It goes to <code>/connect#code=...</code>, can be used on a small number of devices during its short TTL, creates a separate browser session for each successful claim, and then opens the working UI at <code>/app/</code>.</p>
   <ul>
-    <li>Код одноразовый и живёт несколько минут.</li>
-    <li>GitHub Pages больше не используется как клиент к Gateway.</li>
-    <li>Если вы перезапустите translator, потребуется новый QR или новая ссылка.</li>
+    <li>The pairing code is short-lived and claim-limited.</li>
+    <li>GitHub Pages is no longer used as a live Gateway client.</li>
+    <li>If you restart the translator, you will need a fresh QR code or a fresh pairing link.</li>
   </ul>
-  <img src="connect-qr.png" alt="QR-код подключения">
-  <br><a href="${escaped}">Открыть ссылку привязки</a>
+  <img src="connect-qr.png" alt="Pairing QR code">
+  <br><a href="${escaped}">Open the pairing link</a>
   <p>${escaped}</p>
 </main></body></html>`;
 

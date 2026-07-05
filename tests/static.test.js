@@ -23,6 +23,7 @@ function makeConfig(overrides = {}) {
     rateLimitWindowMs: 600000,
     rateLimitMax: 30,
     pairingCodeTtlMs: 300000,
+    pairingMaxClaims: 4,
     sessionTtlMs: 600000,
     authRateLimitWindowMs: 600000,
     authRateLimitMax: 12,

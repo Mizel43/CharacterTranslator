@@ -8,7 +8,7 @@ GitHub Pages is no longer the translator app.
 
 - `docs/` now publishes only a safe public information page.
 - The real browser UI is served by the local Gateway at `/app/` through the current Cloudflare Quick Tunnel URL.
-- Browser access is created by a one-time pairing link at `/connect#code=...`.
+- Browser access is created by a short-lived pairing link at `/connect#code=...`.
 - The browser no longer stores a Gateway bearer token in `localStorage`.
 - Auth now uses short-lived pairing, `HttpOnly` session cookies, a readable CSRF cookie, and same-origin API calls.
 
@@ -48,9 +48,10 @@ New flow:
 
 1. Run `start_translator.bat`.
 2. The local script starts FreeQwenApi, Gateway, and Cloudflare Quick Tunnel.
-3. The script creates a one-time pairing URL like `https://<quick-tunnel>/connect#code=...`.
+3. The script creates a short-lived pairing URL like `https://<quick-tunnel>/connect#code=...`.
 4. A local HTML page with QR opens on the PC and the same link is copied to clipboard.
-5. The browser claims the code at `/api/session/claim`, receives cookies, then opens `/app/`.
+5. The same link can be used on a small number of devices during its TTL, for example on your PC and phone.
+6. Each browser claims the code at `/api/session/claim`, receives its own cookies, then opens `/app/`.
 
 This means GitHub Pages is no longer able to act as a privileged API client.
 
@@ -91,7 +92,7 @@ If your Qwen session is already valid, you can skip this step.
 start_translator.bat
 ```
 
-The script opens a local QR page and copies a one-time pairing link to clipboard. Open that link in the browser you want to use. After claim succeeds, the working app opens at `/app/`.
+The script opens a local QR page and copies a short-lived pairing link to clipboard. You can open that link on your PC and phone during its short TTL. Each successful claim creates a separate browser session and then opens `/app/`.
 
 ### 4. Stop everything
 
@@ -122,6 +123,11 @@ Default example:
   "rateLimit": {
     "windowMs": 600000,
     "max": 30
+  },
+  "auth": {
+    "pairingCodeTtlMs": 300000,
+    "pairingMaxClaims": 4,
+    "sessionTtlMs": 28800000
   }
 }
 ```

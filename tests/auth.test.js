@@ -17,6 +17,7 @@ function makeConfig(overrides = {}) {
     rateLimitWindowMs: 600000,
     rateLimitMax: 30,
     pairingCodeTtlMs: 300000,
+    pairingMaxClaims: 4,
     sessionTtlMs: 600000,
     authRateLimitWindowMs: 600000,
     authRateLimitMax: 12,
@@ -60,8 +61,8 @@ test('request without session cookie gets 401', async () => {
   await close(server);
 });
 
-test('pairing code can be used only once', async () => {
-  const { server } = createTestServer();
+test('pairing code can be reused up to the configured claim limit', async () => {
+  const { server } = createTestServer({ pairingMaxClaims: 2 });
   const port = await listen(server);
 
   const first = await fetch(`http://127.0.0.1:${port}/api/session/claim`, {
@@ -74,9 +75,15 @@ test('pairing code can be used only once', async () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code: 'pairing-code-for-tests-123456' }),
   });
+  const third = await fetch(`http://127.0.0.1:${port}/api/session/claim`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: 'pairing-code-for-tests-123456' }),
+  });
 
   assert.equal(first.status, 200);
-  assert.equal(second.status, 401);
+  assert.equal(second.status, 200);
+  assert.equal(third.status, 401);
 
   await close(server);
 });

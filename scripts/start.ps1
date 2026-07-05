@@ -115,6 +115,7 @@ $ConnectPage = Join-Path $DataDir 'connect-phone.html'
 Start-Process $ConnectPage
 
 Write-Host "`nThe local QR page is open and the pairing link has been copied to the clipboard." -ForegroundColor Green
+Write-Host 'The same short-lived link can be used on your PC and phone until its claim limit is reached.' -ForegroundColor Green
 Write-Host 'GitHub Pages is no longer part of the live translator launch flow.' -ForegroundColor Green
 Write-Host 'After a restart, use a fresh QR code or a fresh /connect#code=... link.' -ForegroundColor Yellow
 Write-Host "`nYou can close this window. The processes keep running until stop_translator.bat is used."

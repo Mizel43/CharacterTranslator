@@ -16,6 +16,7 @@
   },
   "auth": {
     "pairingCodeTtlMs": 300000,
+    "pairingMaxClaims": 4,
     "sessionTtlMs": 28800000,
     "rateLimit": {
       "windowMs": 600000,

@@ -21,8 +21,9 @@ The trusted application client is the self-hosted UI served by the local Gateway
 
 ## Auth model
 
-- `start_translator.bat` creates a one-time pairing link at `/connect#code=...`.
-- `POST /api/session/claim` validates that code once.
+- `start_translator.bat` creates a short-lived pairing link at `/connect#code=...`.
+- `POST /api/session/claim` validates that code for a small limited number of claims.
+- each successful claim creates a separate browser session.
 - Successful claim creates:
   - `HttpOnly` session cookie
   - readable CSRF cookie for same-origin JavaScript
@@ -38,7 +39,7 @@ The trusted application client is the self-hosted UI served by the local Gateway
 3. Use the new QR or new `/connect#code=...` link.
 4. If needed, clear cookies for the tunnel origin in the browser.
 
-Because pairing codes are one-time and short-lived, a restart is enough to rotate the active trust path.
+Because pairing codes are short-lived and claim-limited, a restart is enough to rotate the active trust path.
 
 ## Local secrets and runtime files
 
@@ -65,7 +66,7 @@ The published `docs/` artifact must contain:
 
 Gateway protection includes:
 
-- one-time pairing code
+- short-lived claim-limited pairing code
 - in-memory session store
 - origin allowlist plus same-origin checks
 - explicit deny for `*.github.io`

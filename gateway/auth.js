@@ -39,7 +39,7 @@ export function createAuth({ config, sessionStore, pairingCode }) {
   const pairing = {
     hash: crypto.createHash('sha256').update(rawPairingCode).digest('hex'),
     expiresAt: Date.now() + config.pairingCodeTtlMs,
-    used: false,
+    remainingClaims: Math.max(1, Number(config.pairingMaxClaims || 1)),
   };
 
   function claimPairingCode(code, metadata) {
@@ -48,8 +48,8 @@ export function createAuth({ config, sessionStore, pairingCode }) {
       throw createAuthError(400, 'missing_pairing_code', 'Pairing code is required.');
     }
 
-    if (pairing.used) {
-      throw createAuthError(401, 'pairing_code_already_used', 'Pairing code has already been used.');
+    if (pairing.remainingClaims <= 0) {
+      throw createAuthError(401, 'pairing_code_claim_limit_reached', 'Pairing code claim limit has been reached. Start the translator again to get a fresh code.');
     }
 
     if (Date.now() > pairing.expiresAt) {
@@ -61,7 +61,7 @@ export function createAuth({ config, sessionStore, pairingCode }) {
       throw createAuthError(401, 'invalid_pairing_code', 'Pairing code is invalid.');
     }
 
-    pairing.used = true;
+    pairing.remainingClaims -= 1;
     return sessionStore.createSession(metadata);
   }
 
@@ -121,6 +121,6 @@ export function createAuth({ config, sessionStore, pairingCode }) {
     clearSessionCookies,
     destroySession,
     revokeAllSessions: () => sessionStore.destroyAllSessions(),
-    getPairingStatus: () => ({ used: pairing.used, expiresAt: pairing.expiresAt }),
+    getPairingStatus: () => ({ remainingClaims: pairing.remainingClaims, expiresAt: pairing.expiresAt }),
   };
 }

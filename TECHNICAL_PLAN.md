@@ -93,17 +93,18 @@ POST /api/session/logout
 
 ## Pairing flow
 
-1. `start_translator.bat` creates a high-entropy one-time pairing code.
+1. `start_translator.bat` creates a high-entropy short-lived pairing code.
 2. The script starts Gateway with `TRANSLATOR_PAIRING_CODE`.
 3. The script obtains the current tunnel URL.
 4. The local helper page shows a link:
 
 ```text
-https://<quick-tunnel>/connect#code=<one-time-code>
+https://<quick-tunnel>/connect#code=<pairing-code>
 ```
 
 5. `/connect` claims the code with `POST /api/session/claim`.
-6. Gateway sets cookies and redirects the browser to `/app/`.
+6. The same code may be claimed by a small number of devices before expiry.
+7. Gateway sets cookies and redirects each browser to `/app/`.
 
 ## Cookie model
 
@@ -145,6 +146,7 @@ Relevant keys:
 - `allowedOrigins`
 - `rateLimit`
 - `auth.pairingCodeTtlMs`
+- `auth.pairingMaxClaims`
 - `auth.sessionTtlMs`
 
 ## Tests

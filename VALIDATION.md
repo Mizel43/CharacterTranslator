@@ -15,7 +15,7 @@ Current automated coverage includes:
 - request normalization
 - 18+ profile enforcement
 - prompt and validator behavior
-- one-time session claim
+- claim-limited short-lived session pairing
 - expired pairing code rejection
 - protected route 401 without session
 - protected POST 403 without CSRF
@@ -45,9 +45,10 @@ https://<quick-tunnel>/connect#code=...
 ### Pairing
 
 1. Open the connect link.
-2. Confirm `/connect` succeeds once and redirects to `/app/`.
-3. Try the same link again.
-4. Confirm reuse fails.
+2. Confirm `/connect` succeeds and redirects to `/app/`.
+3. Open the same link on a second device or browser.
+4. Confirm it also succeeds while the code is still valid.
+5. Repeat until the claim limit is reached and confirm further claims fail.
 
 ### Protected API
 
