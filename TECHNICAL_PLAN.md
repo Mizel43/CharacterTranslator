@@ -1,5 +1,13 @@
 # Технический план MVP
 
+## Changelog 0.2.0 - Style Engine v2
+
+- Добавлен единый `docs/style-config.json` для пресетов, уровней контролов, tooltip, interaction rules и температур.
+- Gateway формирует prompt через Style Engine v2 и больше не передает модели только числа вида `Flirt: 3/4`.
+- Request schema расширена полями `presetId`, `priority`, `previous`; действия результата включают `alternative`, `shorter`, `softer`, `bolder`, `more_vulgar`, `apply_settings`.
+- Frontend заменяет `Контекст` и `Тон` на `Пресет`, хранит историю до 5 предыдущих вариантов и делает delta rewrite после изменения sliders.
+- Добавлены validator и один скрытый correction retry на Gateway.
+
 ## 1. Компоненты
 
 ### Web UI

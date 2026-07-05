@@ -2,8 +2,11 @@ import http from 'node:http';
 import { URL } from 'node:url';
 import { loadConfig } from './config.js';
 import { buildMessages, cleanModelOutput, normalizeRequest } from './prompt.js';
+import { getTemperature, loadStyleConfig } from './style-config.js';
+import { buildCorrectionMessages, validateCandidate } from './validator.js';
 
 const config = loadConfig();
+const styleConfig = loadStyleConfig();
 const rateBuckets = new Map();
 
 function json(res, status, payload, extraHeaders = {}) {
@@ -118,17 +121,7 @@ async function listModels() {
   return [...new Set(ids)];
 }
 
-async function translate(body) {
-  const input = normalizeRequest(body, config.maxInputChars);
-  const model = input.model || config.defaultModel;
-  const payload = {
-    model,
-    messages: buildMessages(input),
-    stream: false,
-    temperature: input.action === 'regenerate' ? 0.8 : 0.55,
-    max_tokens: 320,
-  };
-
+async function callQwen(payload) {
   const response = await fetchWithTimeout(`${config.qwenBaseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer dummy-key' },
@@ -148,12 +141,38 @@ async function translate(body) {
     throw new Error(`Qwen недоступен: ${upstreamMessage}`);
   }
 
-  const content = data?.choices?.[0]?.message?.content;
   return {
-    text: cleanModelOutput(content),
-    model,
+    text: cleanModelOutput(data?.choices?.[0]?.message?.content),
     usage: data?.usage || null,
   };
+}
+
+async function translate(body) {
+  const input = normalizeRequest(body, config.maxInputChars);
+  const model = input.model || config.defaultModel;
+  const messages = buildMessages(input);
+  const payload = {
+    model,
+    messages,
+    stream: false,
+    temperature: getTemperature(input.action),
+    max_tokens: 360,
+  };
+
+  const first = await callQwen(payload);
+  const validation = validateCandidate(first.text, input, styleConfig);
+  if (validation.ok) {
+    return { text: first.text, model, usage: first.usage, meta: { corrected: false, action: input.action } };
+  }
+
+  console.warn(`[gateway] correction action=${input.action} reasons=${validation.reasons.join('; ')}`);
+  const second = await callQwen({
+    ...payload,
+    temperature: getTemperature(input.action, true),
+    messages: buildCorrectionMessages(input, first.text, validation.reasons, messages),
+  });
+
+  return { text: second.text, model, usage: second.usage, meta: { corrected: true, action: input.action } };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -161,7 +180,7 @@ const server = http.createServer(async (req, res) => {
   const origin = getOrigin(req);
 
   if (origin && !isOriginAllowed(origin)) {
-    return json(res, 403, { ok: false, error: 'Этот сайт не разрешён в настройках gateway.' });
+    return json(res, 403, { ok: false, error: 'Этот сайт не разрешен в настройках gateway.' });
   }
 
   if (req.method === 'OPTIONS') {
@@ -200,6 +219,7 @@ const server = http.createServer(async (req, res) => {
           gateway: true,
           qwen: upstream.ok,
           defaultModel: config.defaultModel,
+          styleSchemaVersion: styleConfig.schemaVersion,
           upstreamError: upstream.ok ? null : upstream.error || upstream.data?.error || 'Qwen API не отвечает',
         },
         headers,

@@ -1,23 +1,5 @@
-const contextLabels = {
-  chat: 'private casual chat',
-  instagram_dm: 'Instagram direct message',
-  instagram_caption: 'Instagram caption',
-  comment: 'social media comment',
-  dating: 'dating chat',
-  friend: 'chat with a close friend',
-  partner: 'chat with an adult romantic partner',
-  follower: 'reply to a follower',
-};
-
-const toneLabels = {
-  natural: 'natural and relaxed',
-  friendly: 'friendly',
-  playful: 'playful',
-  flirty: 'flirty',
-  confident: 'confident',
-  bold: 'bold and teasing',
-  sarcastic: 'lightly sarcastic',
-};
+import { loadStyleConfig } from './style-config.js';
+import { buildStylePlan, CONTROL_IDS, describeControlDelta, getPreset, mergePresetControls } from './style-engine.js';
 
 function clamp(value, min, max) {
   const number = Number(value);
@@ -37,68 +19,96 @@ function cleanString(value, maxLength = 500) {
   return String(value ?? '').trim().slice(0, maxLength);
 }
 
-export function normalizeRequest(body, maxInputChars) {
-  const text = cleanString(body?.text, maxInputChars);
-  if (!text) throw new Error('Введите текст для перевода.');
+function normalizeAction(action) {
+  const aliases = { regenerate: 'alternative' };
+  const normalized = aliases[action] || action;
+  return ['translate', 'alternative', 'shorter', 'softer', 'bolder', 'more_vulgar', 'apply_settings'].includes(normalized)
+    ? normalized
+    : 'translate';
+}
 
-  const profile = body?.profile && typeof body.profile === 'object' ? body.profile : {};
+function normalizePrevious(previous) {
+  if (!previous || typeof previous !== 'object') return { output: '', outputs: [], controls: null };
+  const output = cleanString(previous.output, 1000);
+  const outputs = cleanArray(previous.outputs, 5, 1000);
+  if (output && !outputs.includes(output)) outputs.unshift(output);
+  const controls = previous.controls && typeof previous.controls === 'object'
+    ? Object.fromEntries(CONTROL_IDS.map((id) => [id, clamp(previous.controls[id], 0, 4)]))
+    : null;
+  return { output, outputs: outputs.slice(0, 5), controls };
+}
+
+function normalizeProfile(profile) {
   const rawAge = Number(profile.age ?? 18);
   if (!Number.isFinite(rawAge) || rawAge < 18) {
     throw new Error('В MVP поддерживаются только взрослые персонажи 18+.');
   }
-  const age = clamp(rawAge, 18, 99);
+  return {
+    name: cleanString(profile.name || 'Character', 80),
+    age: clamp(rawAge, 18, 99),
+    genderVoice: cleanString(profile.genderVoice || 'natural adult voice', 120),
+    region: cleanString(profile.region || 'United States', 120),
+    personality: cleanString(profile.personality, 500),
+    lore: cleanString(profile.lore, 1500),
+    background: cleanString(profile.background, 1000),
+    relationshipToReader: cleanString(profile.relationshipToReader, 300),
+    communicationStyle: cleanString(profile.communicationStyle, 500),
+    preferredPhrases: cleanArray(profile.preferredPhrases),
+    bannedPhrases: cleanArray(profile.bannedPhrases),
+    examples: cleanArray(profile.examples, 16, 400),
+    lowercase: Boolean(profile.lowercase),
+    emojiLevel: clamp(profile.emojiLevel, 0, 3),
+    messageLength: ['short', 'medium', 'long'].includes(profile.messageLength) ? profile.messageLength : 'short',
+  };
+}
+
+export function normalizeRequest(body, maxInputChars) {
+  const config = loadStyleConfig();
+  const text = cleanString(body?.text, maxInputChars);
+  if (!text) throw new Error('Введите текст для перевода.');
+
+  const profile = normalizeProfile(body?.profile && typeof body.profile === 'object' ? body.profile : {});
+  const requestedPreset = cleanString(body?.presetId || body?.preset, 80);
+  const preset = getPreset(requestedPreset, config);
+  const rawControls = body?.controls && typeof body.controls === 'object' ? body.controls : {};
+  const providedControls = Object.fromEntries(
+    CONTROL_IDS
+      .filter((id) => Object.hasOwn(rawControls, id))
+      .map((id) => [id, clamp(rawControls[id], 0, 4)]),
+  );
+  const controls = mergePresetControls(preset.id, providedControls, config);
+  const previous = normalizePrevious(body?.previous);
+  const action = normalizeAction(body?.action);
+  const priority = body?.priority === 'voice' ? 'voice' : 'settings';
 
   return {
     text,
     model: cleanString(body?.model, 100),
-    action: ['translate', 'regenerate', 'softer', 'bolder'].includes(body?.action)
-      ? body.action
-      : 'translate',
-    context: contextLabels[body?.context] || contextLabels.chat,
-    tone: toneLabels[body?.tone] || toneLabels.natural,
-    controls: {
-      slang: clamp(body?.controls?.slang, 0, 4),
-      flirt: clamp(body?.controls?.flirt, 0, 4),
-      vulgarity: clamp(body?.controls?.vulgarity, 0, 4),
-      sexualTension: clamp(body?.controls?.sexualTension, 0, 4),
-      directness: clamp(body?.controls?.directness, 0, 4),
-    },
-    profile: {
-      name: cleanString(profile.name || 'Character', 80),
-      age,
-      genderVoice: cleanString(profile.genderVoice || 'natural adult voice', 120),
-      region: cleanString(profile.region || 'United States', 120),
-      personality: cleanString(profile.personality, 500),
-      lore: cleanString(profile.lore, 1500),
-      preferredPhrases: cleanArray(profile.preferredPhrases),
-      bannedPhrases: cleanArray(profile.bannedPhrases),
-      examples: cleanArray(profile.examples, 16, 400),
-      lowercase: Boolean(profile.lowercase),
-      emojiLevel: clamp(profile.emojiLevel, 0, 3),
-      messageLength: ['short', 'medium', 'long'].includes(profile.messageLength)
-        ? profile.messageLength
-        : 'short',
-    },
+    action: action === 'translate' && previous.output && previous.controls && describeControlDelta(previous.controls, controls).length
+      ? 'apply_settings'
+      : action,
+    presetId: preset.id,
+    priority,
+    controls,
+    previous,
+    profile,
   };
 }
 
 export function buildMessages(input) {
-  const actionInstruction = {
-    translate: 'Produce the best single translation.',
-    regenerate: 'Produce a fresh alternative, not merely a punctuation change.',
-    softer: 'Make the wording somewhat softer and less explicit while preserving the intent.',
-    bolder: 'Make the wording somewhat bolder and more teasing, but do not invent new acts or facts.',
-  }[input.action];
+  const config = loadStyleConfig();
+  const stylePlan = buildStylePlan(input, config);
+  const actionInstruction = config.actions?.[input.action] || config.actions.translate;
+  const deltas = input.previous?.controls ? describeControlDelta(input.previous.controls, input.controls) : [];
 
   const examples = input.profile.examples.length
     ? input.profile.examples.map((example, index) => `${index + 1}. ${example}`).join('\n')
     : 'No examples supplied.';
 
-  const preferred = input.profile.preferredPhrases.length
-    ? input.profile.preferredPhrases.join(', ')
-    : 'None.';
-  const banned = input.profile.bannedPhrases.length
-    ? input.profile.bannedPhrases.join(', ')
+  const preferred = input.profile.preferredPhrases.length ? input.profile.preferredPhrases.join(', ') : 'None.';
+  const banned = input.profile.bannedPhrases.length ? input.profile.bannedPhrases.join(', ') : 'None.';
+  const previousOutputs = input.previous.outputs.length
+    ? input.previous.outputs.map((item, index) => `${index + 1}. ${item}`).join('\n')
     : 'None.';
 
   const system = [
@@ -119,6 +129,9 @@ Voice/gender presentation: ${input.profile.genderVoice}
 US region: ${input.profile.region}
 Personality: ${input.profile.personality || 'Not specified.'}
 Lore: ${input.profile.lore || 'Not specified.'}
+Background: ${input.profile.background || 'Not specified.'}
+Relationship to reader: ${input.profile.relationshipToReader || 'Not specified.'}
+Communication style: ${input.profile.communicationStyle || 'Not specified.'}
 Lowercase preference: ${input.profile.lowercase ? 'yes' : 'no'}
 Emoji level: ${input.profile.emojiLevel}/3
 Typical message length: ${input.profile.messageLength}
@@ -128,15 +141,14 @@ Avoid these phrases: ${banned}
 VOICE EXAMPLES
 ${examples}
 
-CURRENT MESSAGE SETTINGS
-Context: ${input.context}
-Tone: ${input.tone}
-Slang: ${input.controls.slang}/4
-Flirt: ${input.controls.flirt}/4
-Vulgarity: ${input.controls.vulgarity}/4
-Sexual tension: ${input.controls.sexualTension}/4
-Directness: ${input.controls.directness}/4
+STYLE ENGINE V2
+${stylePlan.styleDescription}
+Target length: ${stylePlan.preset.targetLength || input.profile.messageLength}
 Revision instruction: ${actionInstruction}
+Changed controls since previous result: ${deltas.length ? deltas.join(', ') : 'None.'}
+
+PREVIOUS OUTPUTS TO AVOID
+${previousOutputs}
 
 RUSSIAN SOURCE
 ${input.text}

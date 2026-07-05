@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "controls": {
+    "slang": {
+      "label": "Сленг",
+      "levels": [
+        { "value": 0, "name": "Без сленга", "tooltip": "Чистый разговорный английский без интернет-сленга.", "instruction": "Use clean conversational standard American English. Do not use internet slang." },
+        { "value": 1, "name": "Легкий", "tooltip": "Естественные contractions и один легкий разговорный оборот.", "instruction": "Use natural contractions and at most one light casual expression when it fits." },
+        { "value": 2, "name": "Разговорный", "tooltip": "Заметно casual DM-стиль без карикатуры.", "instruction": "Use clearly casual contemporary DM phrasing with one or two natural colloquial markers." },
+        { "value": 3, "name": "Молодежный", "tooltip": "Современная онлайн-речь, но без мемной перегрузки.", "instruction": "Use a modern younger-adult DM voice with several natural casual markers, avoiding caricature." },
+        { "value": 4, "name": "Сильный", "tooltip": "Плотный contemporary online/DM slang, если смысл это выдерживает.", "instruction": "Use dense contemporary online/DM slang and casual syntax where appropriate, but avoid outdated meme slang." }
+      ],
+      "markers": ["kinda", "honestly", "not gonna lie", "lowkey", "for real", "yeah"]
+    },
+    "flirt": {
+      "label": "Флирт",
+      "levels": [
+        { "value": 0, "name": "Нет", "tooltip": "Без романтического или сексуального интереса.", "instruction": "Use no flirtation. Keep the message neutral unless the source explicitly requires it." },
+        { "value": 1, "name": "Легкий", "tooltip": "Теплый намек без явного соблазнения.", "instruction": "Add a warm, lightly interested undertone without obvious seduction." },
+        { "value": 2, "name": "Игривый", "tooltip": "Игривое подтрунивание и мягкий интерес.", "instruction": "Use playful teasing and mild flirtation while preserving the source meaning." },
+        { "value": 3, "name": "Явный", "tooltip": "Открытый флирт, но без грубости.", "instruction": "Make the flirtation clear and confident without crude wording." },
+        { "value": 4, "name": "Соблазняющий", "tooltip": "Смелая, уверенная, соблазняющая подача.", "instruction": "Use a bold seductive flirt tone, but do not invent explicit sexual details absent from the source." }
+      ]
+    },
+    "vulgarity": {
+      "label": "Вульгарность",
+      "levels": [
+        { "value": 0, "name": "Чисто", "tooltip": "Без ругательств и грубых слов.", "instruction": "Use no profanity or crude wording." },
+        { "value": 1, "name": "Мягко", "tooltip": "Редкая мягкая грубость, только если уместно.", "instruction": "Allow very mild profanity only if it naturally fits the source." },
+        { "value": 2, "name": "Средне", "tooltip": "Разговорная грубость без жесткой пошлости.", "instruction": "Allow moderate casual profanity while keeping the line natural rather than shock-oriented." },
+        { "value": 3, "name": "Грубо", "tooltip": "Заметная грубость и более острые формулировки.", "instruction": "Use clear crude/profane wording where it fits, without adding new sexual facts." },
+        { "value": 4, "name": "Очень грубо", "tooltip": "Максимально вульгарная взрослая подача в рамках исходного смысла.", "instruction": "Use strong crude adult wording and profanity when semantically possible, preserving the original intent." }
+      ],
+      "markers": ["fuck", "fucking", "shit", "damn", "hell", "ass", "dirty"]
+    },
+    "sexualTension": {
+      "label": "Сексуальный намек",
+      "levels": [
+        { "value": 0, "name": "Нет", "tooltip": "Без сексуального подтекста.", "instruction": "Do not add sexual tension or suggestive subtext." },
+        { "value": 1, "name": "Едва", "tooltip": "Едва заметная химия, если она уже есть в исходнике.", "instruction": "Keep any suggestive energy very subtle and only where the source supports it." },
+        { "value": 2, "name": "Намек", "tooltip": "Читабельный намек без явной эротики.", "instruction": "Use noticeable suggestive subtext without explicit erotic wording." },
+        { "value": 3, "name": "Горячо", "tooltip": "Сильная химия и взрослая интимная подача.", "instruction": "Make the adult chemistry strong and intimate while avoiding invented explicit acts." },
+        { "value": 4, "name": "На грани", "tooltip": "Максимально suggestive без добавления новых фактов.", "instruction": "Push the suggestive adult tension to the edge allowed by the source without adding new explicit details." }
+      ]
+    },
+    "directness": {
+      "label": "Прямота",
+      "levels": [
+        { "value": 0, "name": "Обходно", "tooltip": "Мягко, косвенно, с подстраховкой.", "instruction": "Phrase the message indirectly and gently, with softened edges." },
+        { "value": 1, "name": "Мягко", "tooltip": "Осторожная, но понятная формулировка.", "instruction": "Keep the message clear but tactful and softened." },
+        { "value": 2, "name": "Нормально", "tooltip": "Естественная прямота без давления.", "instruction": "Use normal directness: clear, natural, and not pushy." },
+        { "value": 3, "name": "Уверенно", "tooltip": "Более уверенно и меньше смягчений.", "instruction": "Use confident direct wording with few hedges." },
+        { "value": 4, "name": "В лоб", "tooltip": "Максимально прямо, коротко и уверенно.", "instruction": "Be very direct, concise, and assertive while preserving the source intent." }
+      ]
+    }
+  },
+  "presets": {
+    "natural": { "label": "Естественно", "context": "everyday private message", "goal": "sound natural and native", "tone": "natural and relaxed", "targetLength": "short", "controls": { "slang": 1, "flirt": 0, "vulgarity": 0, "sexualTension": 0, "directness": 2 } },
+    "casual_dm": { "label": "Casual DM", "context": "casual DM with an adult follower", "goal": "friendly private reply", "tone": "casual and warm", "targetLength": "short", "controls": { "slang": 2, "flirt": 1, "vulgarity": 0, "sexualTension": 0, "directness": 2 } },
+    "playful": { "label": "Игриво", "context": "playful private chat", "goal": "playful teasing reply", "tone": "playful", "targetLength": "short", "controls": { "slang": 2, "flirt": 2, "vulgarity": 0, "sexualTension": 1, "directness": 2 } },
+    "flirty": { "label": "Флирт", "context": "flirty DM with an adult follower", "goal": "clear flirt while staying natural", "tone": "flirty", "targetLength": "short", "controls": { "slang": 2, "flirt": 3, "vulgarity": 0, "sexualTension": 2, "directness": 2 } },
+    "bold_flirt": { "label": "Смелый флирт", "context": "confident seductive DM", "goal": "bold seductive reply", "tone": "confident and teasing", "targetLength": "short", "controls": { "slang": 2, "flirt": 4, "vulgarity": 1, "sexualTension": 3, "directness": 3 } },
+    "sensual": { "label": "Чувственно", "context": "sensual adult private chat without crude wording", "goal": "sensual but not crude", "tone": "sensual", "targetLength": "short", "controls": { "slang": 1, "flirt": 3, "vulgarity": 0, "sexualTension": 4, "directness": 2 } },
+    "vulgar_flirt": { "label": "Вульгарный флирт", "context": "crude adult flirt in private messages", "goal": "crude adult flirt", "tone": "crude and flirty", "targetLength": "short", "controls": { "slang": 2, "flirt": 3, "vulgarity": 4, "sexualTension": 3, "directness": 3 } },
+    "erotic_edge": { "label": "На грани эротики", "context": "highly suggestive adult private chat", "goal": "highly suggestive adult reply", "tone": "bold and suggestive", "targetLength": "short", "controls": { "slang": 2, "flirt": 4, "vulgarity": 2, "sexualTension": 4, "directness": 3 } },
+    "caption": { "label": "Подпись к посту", "context": "short social media caption", "goal": "caption-like phrasing", "tone": "punchy and natural", "targetLength": "short", "controls": { "slang": 2, "flirt": 1, "vulgarity": 0, "sexualTension": 0, "directness": 2 } }
+  },
+  "interactionRules": [
+    { "when": { "flirt": 0, "sexualTensionMin": 2 }, "instruction": "Because flirt is off, keep suggestive wording subtle and do not make the message romantic." },
+    { "when": { "flirtMin": 3, "vulgarity": 0 }, "instruction": "Use clear flirt through warmth, confidence, and implication rather than profanity or crude wording." },
+    { "when": { "vulgarityMin": 3, "sexualTensionMax": 1 }, "instruction": "Profanity may be casual or emphatic, but avoid turning the line sexually explicit." },
+    { "when": { "sexualTensionMin": 3, "vulgarity": 0 }, "instruction": "Make the line sensual through pacing and implication, not crude vocabulary." },
+    { "when": { "directnessMin": 3, "flirtMin": 2 }, "instruction": "Make the flirt confident and clear instead of coy." },
+    { "when": { "directnessMax": 1, "flirtMin": 3 }, "instruction": "Keep the flirt softer and more implied because directness is low." },
+    { "when": { "slangMin": 3, "directnessMin": 3 }, "instruction": "Use short modern DM syntax and avoid overexplaining." },
+    { "when": { "slang": 0, "flirtMin": 3 }, "instruction": "Keep the flirt polished and adult, without internet slang." },
+    { "when": { "vulgarityMin": 3, "flirtMin": 3 }, "instruction": "If the source allows it, make the adult flirt dirtier while preserving meaning." },
+    { "when": { "sexualTensionMin": 3, "directnessMax": 1 }, "instruction": "Use charged implication rather than blunt sexual wording." },
+    { "when": { "slangMin": 2, "vulgarityMin": 2 }, "instruction": "Keep profanity natural for American DMs, not theatrical." }
+  ],
+  "actions": {
+    "translate": "Produce the best single translation.",
+    "alternative": "Produce a meaning-preserving alternative that is not just punctuation, casing, or word-order changes.",
+    "shorter": "Make it shorter and tighter while preserving the core intent.",
+    "softer": "Make it softer and less intense while preserving the intent.",
+    "bolder": "Make it bolder, more confident, and more teasing without inventing new facts.",
+    "more_vulgar": "Make it more vulgar or profane if the source meaning allows it, without inventing new acts or facts.",
+    "apply_settings": "Rewrite the previous result to reflect the changed style settings while preserving the Russian source meaning."
+  },
+  "temperatures": {
+    "translate": 0.55,
+    "alternative": 0.85,
+    "shorter": 0.4,
+    "softer": 0.55,
+    "bolder": 0.6,
+    "more_vulgar": 0.6,
+    "apply_settings": 0.5,
+    "correction": 0.35
+  }
+}

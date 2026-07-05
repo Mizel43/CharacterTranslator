@@ -166,6 +166,21 @@ cd gateway
 npm test
 ```
 
+## Style Engine v2
+
+Версия 0.2.0 заменяет отдельные поля контекста и тона на единый `Пресет` и добавляет общий конфиг `docs/style-config.json`.
+
+Что изменилось:
+
+- frontend грузит пресеты, подписи уровней и tooltip из `style-config.json`;
+- Gateway читает тот же конфиг через `gateway/style-config.js`;
+- prompt получает текстовые инструкции каждого уровня, interaction rules и приоритет `Голос персонажа` / `Настройки сообщения`;
+- request schema поддерживает `presetId`, `priority`, `controls`, `profile`, `previous` и действия `alternative`, `shorter`, `softer`, `bolder`, `more_vulgar`, `apply_settings`;
+- повторный перевод после изменения sliders автоматически становится delta rewrite `apply_settings`;
+- Gateway скрыто валидирует первый ответ и делает максимум один correction request;
+- UI хранит до 5 предыдущих вариантов и не показывает пользователю внутренние проверки;
+- добавлен профиль-шаблон LA Creator с расширенными полями персонажа.
+
 ## Известные риски
 
 - FreeQwenApi использует неофициальный веб-интерфейс Qwen, поэтому может сломаться после изменений Qwen Chat.

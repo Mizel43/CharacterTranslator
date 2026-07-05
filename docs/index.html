@@ -62,28 +62,14 @@
     <section class="panel translator-panel">
       <div class="quick-grid">
         <label class="field">
-          <span>Контекст</span>
-          <select id="contextSelect">
-            <option value="chat">Обычная переписка</option>
-            <option value="instagram_dm">Instagram DM</option>
-            <option value="instagram_caption">Подпись к посту</option>
-            <option value="comment">Комментарий</option>
-            <option value="dating">Дейтинг</option>
-            <option value="friend">Близкий друг</option>
-            <option value="partner">Партнёр</option>
-            <option value="follower">Ответ подписчику</option>
-          </select>
+          <span>Пресет <small id="presetDirty" class="dirty-marker hidden">изменен</small></span>
+          <select id="presetSelect"></select>
         </label>
         <label class="field">
-          <span>Тон</span>
-          <select id="toneSelect">
-            <option value="natural">Естественный</option>
-            <option value="friendly">Дружелюбный</option>
-            <option value="playful">Игривый</option>
-            <option value="flirty">Флиртующий</option>
-            <option value="confident">Уверенный</option>
-            <option value="bold">Дерзкий</option>
-            <option value="sarcastic">Саркастичный</option>
+          <span>Приоритет</span>
+          <select id="prioritySelect">
+            <option value="settings">Настройки сообщения</option>
+            <option value="voice">Голос персонажа</option>
           </select>
         </label>
         <label class="field">
@@ -96,17 +82,37 @@
       </div>
 
       <div class="sliders">
-        <label class="slider-field"><span>Сленг <output id="slangValue">1</output></span><input id="slang" type="range" min="0" max="4" value="1"></label>
-        <label class="slider-field"><span>Флирт <output id="flirtValue">1</output></span><input id="flirt" type="range" min="0" max="4" value="1"></label>
-        <label class="slider-field"><span>Вульгарность <output id="vulgarityValue">0</output></span><input id="vulgarity" type="range" min="0" max="4" value="0"></label>
-        <label class="slider-field"><span>Сексуальный намёк <output id="sexualTensionValue">0</output></span><input id="sexualTension" type="range" min="0" max="4" value="0"></label>
-        <label class="slider-field"><span>Прямота <output id="directnessValue">2</output></span><input id="directness" type="range" min="0" max="4" value="2"></label>
+        <label class="slider-field">
+          <span><span data-control-label="slang">Сленг</span><button class="help-button" data-control-help="slang" type="button" aria-label="Подсказка">?</button></span>
+          <input id="slang" type="range" min="0" max="4" value="1">
+          <output id="slangValue">1</output>
+        </label>
+        <label class="slider-field">
+          <span><span data-control-label="flirt">Флирт</span><button class="help-button" data-control-help="flirt" type="button" aria-label="Подсказка">?</button></span>
+          <input id="flirt" type="range" min="0" max="4" value="1">
+          <output id="flirtValue">1</output>
+        </label>
+        <label class="slider-field">
+          <span><span data-control-label="vulgarity">Вульгарность</span><button class="help-button" data-control-help="vulgarity" type="button" aria-label="Подсказка">?</button></span>
+          <input id="vulgarity" type="range" min="0" max="4" value="0">
+          <output id="vulgarityValue">0</output>
+        </label>
+        <label class="slider-field">
+          <span><span data-control-label="sexualTension">Сексуальный намек</span><button class="help-button" data-control-help="sexualTension" type="button" aria-label="Подсказка">?</button></span>
+          <input id="sexualTension" type="range" min="0" max="4" value="0">
+          <output id="sexualTensionValue">0</output>
+        </label>
+        <label class="slider-field">
+          <span><span data-control-label="directness">Прямота</span><button class="help-button" data-control-help="directness" type="button" aria-label="Подсказка">?</button></span>
+          <input id="directness" type="range" min="0" max="4" value="2">
+          <output id="directnessValue">2</output>
+        </label>
       </div>
 
       <label class="field source-field">
         <span>Русский текст</span>
-        <textarea id="sourceText" rows="6" maxlength="4000" placeholder="Напиши фразу по-русски…"></textarea>
-        <small><span id="charCount">0</span>/4000 · Ctrl+Enter — перевести</small>
+        <textarea id="sourceText" rows="6" maxlength="4000" placeholder="Напиши фразу по-русски..."></textarea>
+        <small><span id="charCount">0</span>/4000 · Ctrl+Enter - перевести</small>
       </label>
 
       <button id="translateButton" class="primary-button" type="button">Перевести</button>
@@ -119,9 +125,11 @@
         <p id="resultText"></p>
         <div class="button-row wrap">
           <button id="copyResult" class="primary-button compact" type="button">Копировать</button>
-          <button id="regenerateResult" class="secondary-button compact" type="button">Другой вариант</button>
+          <button id="regenerateResult" class="secondary-button compact" type="button">По-другому</button>
+          <button id="shorterResult" class="ghost-button compact" type="button">Короче</button>
           <button id="softerResult" class="ghost-button compact" type="button">Мягче</button>
           <button id="bolderResult" class="ghost-button compact" type="button">Смелее</button>
+          <button id="moreVulgarResult" class="ghost-button compact" type="button">Вульгарнее</button>
         </div>
       </section>
 
@@ -166,14 +174,19 @@
       </div>
       <label class="field"><span>Характер</span><textarea id="profilePersonality" rows="2" maxlength="500"></textarea></label>
       <label class="field"><span>Лор и контекст</span><textarea id="profileLore" rows="3" maxlength="1500"></textarea></label>
-      <label class="field"><span>Примеры речи — по одному на строку</span><textarea id="profileExamples" rows="5" maxlength="5000" placeholder="okay but this is actually so cute"></textarea></label>
+      <label class="field"><span>Бэкграунд</span><textarea id="profileBackground" rows="2" maxlength="1000"></textarea></label>
+      <div class="form-grid">
+        <label class="field"><span>Отношение к собеседнику</span><textarea id="profileRelationship" rows="2" maxlength="300"></textarea></label>
+        <label class="field"><span>Стиль общения</span><textarea id="profileCommunicationStyle" rows="2" maxlength="500"></textarea></label>
+      </div>
+      <label class="field"><span>Примеры речи - по одному на строку</span><textarea id="profileExamples" rows="5" maxlength="5000" placeholder="okay but this is actually so cute"></textarea></label>
       <div class="form-grid">
         <label class="field"><span>Любимые выражения</span><textarea id="profilePreferred" rows="2" placeholder="по одному на строку"></textarea></label>
-        <label class="field"><span>Запрещённые выражения</span><textarea id="profileBanned" rows="2" placeholder="по одному на строку"></textarea></label>
+        <label class="field"><span>Запрещенные выражения</span><textarea id="profileBanned" rows="2" placeholder="по одному на строку"></textarea></label>
       </div>
       <div class="form-grid three">
         <label class="field"><span>Эмодзи</span><select id="profileEmoji"><option value="0">Нет</option><option value="1">Редко</option><option value="2">Иногда</option><option value="3">Часто</option></select></label>
-        <label class="field"><span>Длина</span><select id="profileLength"><option value="short">Коротко</option><option value="medium">Средне</option><option value="long">Развёрнуто</option></select></label>
+        <label class="field"><span>Длина</span><select id="profileLength"><option value="short">Коротко</option><option value="medium">Средне</option><option value="long">Развернуто</option></select></label>
         <label class="check-field"><input id="profileLowercase" type="checkbox"><span>Преимущественно lowercase</span></label>
       </div>
       <div class="button-row between">
