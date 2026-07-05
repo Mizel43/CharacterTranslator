@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TextLikeUS QA Harness</title>
+  <link rel="stylesheet" href="../../gateway/ui/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand-block">
+      <h1 class="brand">TextLike<span>US</span></h1>
+      <p class="brand-tagline">Translate the vibe, not just the words.</p>
+    </div>
+
+    <div class="header-actions">
+      <button class="status-chip" type="button">
+        <span class="status-dot ok"></span>
+        <span>Подключено</span>
+      </button>
+      <button class="icon-shell" type="button" aria-label="Настройки">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 8.7a3.3 3.3 0 1 0 0 6.6a3.3 3.3 0 0 0 0-6.6Zm8.5 3.3c0-.4 0-.7-.1-1.1l2-1.6l-2-3.5l-2.4 1a9.8 9.8 0 0 0-1.9-1.1l-.3-2.6h-4l-.4 2.6a9.8 9.8 0 0 0-1.8 1.1l-2.4-1l-2 3.5l2 1.6a9.1 9.1 0 0 0 0 2.2l-2 1.6l2 3.5l2.4-1c.6.5 1.2.8 1.8 1.1l.4 2.6h4l.3-2.6c.7-.2 1.3-.6 1.9-1.1l2.4 1l2-3.5l-2-1.6c.1-.4.1-.7.1-1.1Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="app-layout">
+    <section class="main-column">
+      <section class="panel direction-panel">
+        <div class="mode-switch" role="tablist" aria-label="Режим перевода">
+          <button id="qa-tab-ru-en" class="mode-tab active" type="button" role="tab" aria-selected="true">
+            <span class="mode-tab-direction">RU → EN</span>
+            <span class="mode-tab-caption">Написать</span>
+          </button>
+          <button id="qa-tab-en-ru" class="mode-tab" type="button" role="tab" aria-selected="false">
+            <span class="mode-tab-direction">EN → RU</span>
+            <span class="mode-tab-caption">Понять</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel editor-card">
+        <div class="panel-head">
+          <label id="qa-source-label" class="panel-title" for="qa-source">Ваше сообщение (RU → EN)</label>
+          <span class="counter"><span id="qa-char-count">49</span>/4000</span>
+        </div>
+        <textarea id="qa-source" rows="6"></textarea>
+        <div class="editor-footer">
+          <small id="qa-source-hint">Ctrl+Enter — перевести</small>
+          <div class="button-row action-row">
+            <button class="primary-button" type="button">Перевести</button>
+            <button class="ghost-button" type="button">Стереть</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel result-card" aria-live="polite">
+        <div class="panel-head">
+          <span id="qa-result-label" class="panel-title">Результат (EN)</span>
+          <span class="model-badge">qwen3.7-max</span>
+        </div>
+        <div class="result-output">
+          <p id="qa-result-text"></p>
+        </div>
+        <div class="result-actions">
+          <button id="qa-copy" class="primary-button compact" type="button">Копировать</button>
+          <button id="qa-alt" class="secondary-button compact" type="button">По-другому</button>
+          <button id="qa-shorter" class="ghost-button compact" type="button">Короче</button>
+          <button id="qa-softer" class="ghost-button compact" type="button">Мягче</button>
+          <button id="qa-bolder" class="ghost-button compact" type="button">Смелее</button>
+          <button id="qa-vulgar" class="ghost-button compact" type="button">Вульгарнее</button>
+        </div>
+      </section>
+
+      <div class="summary-grid">
+        <button id="qa-character-card" class="summary-card" type="button">
+          <span class="summary-label">Персонаж</span>
+          <strong id="qa-character-title" class="summary-title">Letti, 22</strong>
+          <span id="qa-character-meta" class="summary-meta">LA creator • female</span>
+          <span id="qa-character-note" class="summary-note">Открыть настройки персонажа</span>
+        </button>
+
+        <button id="qa-preset-card" class="summary-card" type="button">
+          <span class="summary-label">Пресет</span>
+          <strong id="qa-preset-title" class="summary-title">Флирт</strong>
+          <span id="qa-preset-meta" class="summary-meta">Сленг 2 • Флирт 4 • Прямота 3</span>
+          <span id="qa-preset-note" class="summary-note">Открыть ToneShift и модель</span>
+        </button>
+      </div>
+    </section>
+
+    <aside id="qa-tone-sidebar" class="panel tone-sidebar" aria-labelledby="qa-tone-sidebar-title">
+      <div class="tone-sheet-header">
+        <div>
+          <p class="eyebrow">ToneShift</p>
+          <h2 id="qa-tone-sidebar-title">ToneShift</h2>
+        </div>
+        <button id="qa-tone-close" class="icon-shell compact-icon" type="button" aria-label="Закрыть ToneShift">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+          </svg>
+        </button>
+      </div>
+
+      <p id="qa-tone-note" class="tone-note">ToneShift настраивает итоговый английский текст, не меняя смысл исходника.</p>
+
+      <div class="sidebar-fields">
+        <label class="field">
+          <span>Пресет</span>
+          <select id="qa-preset-select">
+            <option selected>Casual DM</option>
+            <option>Флирт</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Приоритет</span>
+          <select id="qa-priority-select">
+            <option selected>Настройки сообщения</option>
+            <option>Голос персонажа</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Модель</span>
+          <select id="qa-model-select">
+            <option selected>qwen3.7-max</option>
+            <option>qwen3.7-plus</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="tone-controls">
+        <section class="tone-control">
+          <div class="tone-control-header">
+            <div>
+              <span class="tone-control-label">Сленг</span>
+              <output class="tone-level">2 • Разговорный</output>
+            </div>
+            <button class="help-button" type="button" aria-label="Подсказка">?</button>
+          </div>
+          <input type="range" min="0" max="4" value="2">
+        </section>
+        <section class="tone-control">
+          <div class="tone-control-header">
+            <div>
+              <span class="tone-control-label">Флирт</span>
+              <output class="tone-level">4 • Соблазняющий</output>
+            </div>
+            <button class="help-button" type="button" aria-label="Подсказка">?</button>
+          </div>
+          <input type="range" min="0" max="4" value="4">
+        </section>
+        <section class="tone-control">
+          <div class="tone-control-header">
+            <div>
+              <span class="tone-control-label">Вульгарность</span>
+              <output class="tone-level">1 • Мягко</output>
+            </div>
+            <button class="help-button" type="button" aria-label="Подсказка">?</button>
+          </div>
+          <input type="range" min="0" max="4" value="1">
+        </section>
+        <section class="tone-control">
+          <div class="tone-control-header">
+            <div>
+              <span class="tone-control-label">Сексуальный намек</span>
+              <output class="tone-level">3 • Горячо</output>
+            </div>
+            <button class="help-button" type="button" aria-label="Подсказка">?</button>
+          </div>
+          <input type="range" min="0" max="4" value="3">
+        </section>
+        <section class="tone-control">
+          <div class="tone-control-header">
+            <div>
+              <span class="tone-control-label">Прямота</span>
+              <output class="tone-level">3 • Уверенно</output>
+            </div>
+            <button class="help-button" type="button" aria-label="Подсказка">?</button>
+          </div>
+          <input type="range" min="0" max="4" value="3">
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <button id="qa-backdrop" class="mobile-backdrop hidden" type="button" tabindex="-1" aria-hidden="true"></button>
+
+  <dialog id="qa-profile-dialog">
+    <form method="dialog" class="dialog-card profile-form">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">Character Voice</p>
+          <h2>Профиль</h2>
+        </div>
+        <button class="icon-shell" type="button" aria-label="Закрыть профиль">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="profile-toolbar">
+        <label class="field compact-field">
+          <span>Персонаж</span>
+          <select>
+            <option selected>Letti</option>
+          </select>
+        </label>
+        <div class="button-row wrap">
+          <button class="secondary-button compact" type="button">+ Новый</button>
+          <button class="ghost-button compact" type="button">Копия</button>
+        </div>
+      </div>
+
+      <div class="profile-summary">
+        <strong>Letti, 22</strong>
+        Los Angeles, California • young woman, casual and feminine<br>
+        confident, playful, warm, slightly teasing<br>
+        <small>12 примеров речи</small>
+      </div>
+
+      <div class="form-grid">
+        <label class="field"><span>Имя</span><input value="Letti"></label>
+        <label class="field"><span>Возраст, 18+</span><input value="22"></label>
+        <label class="field"><span>Голос / подача</span><input value="young woman, casual and feminine"></label>
+        <label class="field"><span>Регион США</span><input value="Los Angeles, California"></label>
+      </div>
+
+      <label class="field"><span>Характер</span><textarea rows="2">confident, playful, warm, slightly teasing</textarea></label>
+      <label class="field"><span>Лор и контекст</span><textarea rows="3">Lifestyle creator who writes short, natural messages and dislikes forced slang.</textarea></label>
+
+      <div class="button-row between dialog-actions">
+        <button class="danger-button" type="button">Удалить</button>
+        <div class="button-row wrap">
+          <button class="ghost-button" type="button">Отмена</button>
+          <button class="primary-button" type="button">Сохранить</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const states = {
+      'mobile-ru-en': {
+        direction: 'ru-en',
+        sourceLabel: 'Ваше сообщение (RU → EN)',
+        sourceText: 'Привет, как твои дела? чем занимаешься?',
+        sourceHint: 'Ctrl+Enter — перевести',
+        resultLabel: 'Результат (EN)',
+        resultText: 'Heyy, how are you doing? What’s up? 😉',
+      },
+      'mobile-en-ru': {
+        direction: 'en-ru',
+        sourceLabel: 'English message (EN → RU)',
+        sourceText: 'hey you',
+        sourceHint: 'Ctrl+Enter — перевести',
+        resultLabel: 'Результат (RU)',
+        resultText: 'Привет',
+      },
+      'mobile-sheet': {
+        direction: 'ru-en',
+        sourceLabel: 'Ваше сообщение (RU → EN)',
+        sourceText: 'Привет, как твои дела? чем занимаешься?',
+        sourceHint: 'Ctrl+Enter — перевести',
+        resultLabel: 'Результат (EN)',
+        resultText: 'Heyy, how are you doing? What’s up? 😉',
+        openSidebar: true,
+      },
+      'desktop-ru-en': {
+        direction: 'ru-en',
+        sourceLabel: 'Ваше сообщение (RU → EN)',
+        sourceText: 'Привет, как твои дела? чем занимаешься?',
+        sourceHint: 'Ctrl+Enter — перевести',
+        resultLabel: 'Результат (EN)',
+        resultText: 'Heyy, how are you doing? What’s up? 😉',
+      },
+      'desktop-en-ru': {
+        direction: 'en-ru',
+        sourceLabel: 'English message (EN → RU)',
+        sourceText: 'hey you',
+        sourceHint: 'Ctrl+Enter — перевести',
+        resultLabel: 'Результат (RU)',
+        resultText: 'Привет',
+      },
+      'desktop-profile-dialog': {
+        direction: 'ru-en',
+        sourceLabel: 'Ваше сообщение (RU → EN)',
+        sourceText: 'Привет, как твои дела? чем занимаешься?',
+        sourceHint: 'Ctrl+Enter — перевести',
+        resultLabel: 'Результат (EN)',
+        resultText: 'Heyy, how are you doing? What’s up? 😉',
+        openProfileDialog: true,
+      },
+    };
+
+    const stateName = new URLSearchParams(location.search).get('state') || 'desktop-ru-en';
+    const state = states[stateName] || states['desktop-ru-en'];
+
+    const setDirection = (direction) => {
+      const ruEn = direction === 'ru-en';
+      document.getElementById('qa-tab-ru-en').classList.toggle('active', ruEn);
+      document.getElementById('qa-tab-ru-en').setAttribute('aria-selected', ruEn ? 'true' : 'false');
+      document.getElementById('qa-tab-en-ru').classList.toggle('active', !ruEn);
+      document.getElementById('qa-tab-en-ru').setAttribute('aria-selected', !ruEn ? 'true' : 'false');
+
+      document.getElementById('qa-copy').classList.remove('hidden');
+      ['qa-alt', 'qa-shorter', 'qa-softer', 'qa-bolder', 'qa-vulgar'].forEach((id) => {
+        document.getElementById(id).classList.toggle('hidden', !ruEn);
+      });
+
+      document.getElementById('qa-character-card').classList.toggle('is-muted', !ruEn);
+      document.getElementById('qa-preset-card').classList.toggle('is-muted', !ruEn);
+      document.getElementById('qa-tone-sidebar').classList.toggle('is-disabled', !ruEn);
+      document.getElementById('qa-preset-select').disabled = !ruEn;
+      document.getElementById('qa-priority-select').disabled = !ruEn;
+      document.querySelectorAll('#qa-tone-sidebar input[type="range"], #qa-tone-sidebar .help-button').forEach((node) => {
+        node.disabled = !ruEn;
+      });
+
+      document.getElementById('qa-character-note').textContent = ruEn ? 'Открыть настройки персонажа' : 'Не используется для EN → RU';
+      document.getElementById('qa-preset-note').textContent = ruEn ? 'Открыть ToneShift и модель' : 'Не используется для EN → RU';
+      document.getElementById('qa-tone-note').textContent = ruEn
+        ? 'ToneShift настраивает итоговый английский текст, не меняя смысл исходника.'
+        : 'ToneShift не применяется к входящему переводу. Профиль, пресет и слайдеры не влияют на EN → RU.';
+    };
+
+    document.getElementById('qa-source-label').textContent = state.sourceLabel;
+    document.getElementById('qa-source').value = state.sourceText;
+    document.getElementById('qa-source-hint').textContent = state.sourceHint;
+    document.getElementById('qa-result-label').textContent = state.resultLabel;
+    document.getElementById('qa-result-text').textContent = state.resultText;
+    document.getElementById('qa-char-count').textContent = String(state.sourceText.length);
+    setDirection(state.direction);
+
+    if (state.openSidebar) {
+      document.getElementById('qa-tone-sidebar').classList.add('open');
+      document.getElementById('qa-backdrop').classList.remove('hidden');
+      document.body.classList.add('body-locked');
+    }
+
+    if (state.openProfileDialog) {
+      requestAnimationFrame(() => {
+        document.getElementById('qa-profile-dialog').showModal();
+      });
+    }
+  </script>
+</body>
+</html>

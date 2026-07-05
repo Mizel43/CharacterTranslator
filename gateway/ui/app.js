@@ -1,5 +1,6 @@
 import { apiFetch, clearSessionArtifacts, hydrateCsrfToken } from './api.js';
 import { createBlankProfile, prepareImportedProfiles, splitLines } from './profiles.js';
+import { buildTranslateRequest } from './request-payload.js';
 import {
   loadProfiles,
   loadSelectedProfileId,
@@ -11,25 +12,37 @@ import {
   saveUiState,
   saveWorkspaceState,
 } from './state.js';
-import { buildTranslateRequest } from './request-payload.js';
-import { CONTROL_IDS, applyPresetToInputs, readControls, syncControlLabels, updateControlOutputs } from './style-controls.js';
+import {
+  CONTROL_IDS,
+  applyPresetToInputs,
+  levelFor,
+  readControls,
+  syncControlLabels,
+  updateControlOutputs,
+} from './style-controls.js';
 
 const DIRECTIONS = ['ru-en', 'en-ru'];
+const MOBILE_LAYOUT_QUERY = '(max-width: 960px)';
+const TOOLTIP_WIDTH = 320;
+
 const DIRECTION_CONFIG = {
   'ru-en': {
-    sourceLabel: 'Русский текст',
+    sourceLabel: 'Ваше сообщение (RU → EN)',
     sourcePlaceholder: 'Напишите фразу по-русски...',
     sourceEmptyError: 'Введите фразу по-русски.',
     sourceHint: 'Ctrl+Enter — перевести',
-    translateLabel: 'Перевести на английский',
+    translateLabel: 'Перевести',
     translateBusyLabel: 'Перевожу...',
     alternativeBusyLabel: 'Ищу другой вариант...',
     clearLabel: 'Стереть',
-    resultLabel: 'Результат на английском',
+    resultLabel: 'Результат (EN)',
     copySuccess: 'Скопировано.',
+    toneNote: 'ToneShift настраивает итоговый английский текст, не меняя смысл исходника.',
+    cardNote: 'Открыть настройки персонажа',
+    presetNote: 'Открыть ToneShift и модель',
   },
   'en-ru': {
-    sourceLabel: 'English message',
+    sourceLabel: 'English message (EN → RU)',
     sourcePlaceholder: 'Paste the English message here...',
     sourceEmptyError: 'Enter an English message first.',
     sourceHint: 'Ctrl+Enter — перевести',
@@ -37,8 +50,11 @@ const DIRECTION_CONFIG = {
     translateBusyLabel: 'Перевожу на русский...',
     alternativeBusyLabel: 'Перевожу на русский...',
     clearLabel: 'Стереть',
-    resultLabel: 'Перевод на русский',
+    resultLabel: 'Результат (RU)',
     copySuccess: 'Скопировано.',
+    toneNote: 'ToneShift не применяется к входящему переводу. Профиль, пресет и слайдеры не влияют на EN → RU.',
+    cardNote: 'Не используется для EN → RU',
+    presetNote: 'Не используется для EN → RU',
   },
 };
 
@@ -57,34 +73,53 @@ const fallbackStyleConfig = {
 };
 
 const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+
 const elements = {
-  directionTabs: [...document.querySelectorAll('[role="tab"][data-direction]')],
+  directionTabs: $$('[role="tab"][data-direction]'),
   modePanels: {
     'ru-en': $('#mode-panel-ru-en'),
     'en-ru': $('#mode-panel-en-ru'),
   },
-  ruEnOnly: [...document.querySelectorAll('[data-ru-en-only]')],
-  ruEnActions: [...document.querySelectorAll('[data-ru-en-action]')],
-  profileSelect: $('#profileSelect'),
-  profileSummary: $('#profileSummary'),
   sourceLabel: $('#sourceLabel'),
   sourceText: $('#sourceText'),
   sourceHint: $('#sourceHint'),
   charCount: $('#charCount'),
   clearSource: $('#clearSourceButton'),
+  translate: $('#translateButton'),
   preset: $('#presetSelect'),
   presetDirty: $('#presetDirty'),
   priority: $('#prioritySelect'),
   model: $('#modelSelect'),
-  translate: $('#translateButton'),
   resultCard: $('#resultCard'),
   resultText: $('#resultText'),
   resultModel: $('#resultModel'),
   resultHeadingLabel: $('#resultHeadingLabel'),
+  ruEnActions: $$('[data-ru-en-action]'),
   messageBox: $('#messageBox'),
+  connectionButton: $('#connectionButton'),
   connectionDot: $('#connectionDot'),
   connectionText: $('#connectionText'),
+  openSettingsButton: $('#openSettingsButton'),
+  settingsDialog: $('#settingsDialog'),
+  settingsProfileCount: $('#settingsProfileCount'),
+  toneSidebar: $('#toneSidebar'),
+  toneSidebarNote: $('#toneSidebarNote'),
+  toneSidebarClose: $('#toneSidebarClose'),
+  toneSidebarBackdrop: $('#toneSidebarBackdrop'),
+  toneTooltip: $('#toneTooltip'),
+  helpButtons: $$('[data-control-help]'),
+  profileCard: $('#editProfile'),
+  profileCardTitle: $('#characterCardTitle'),
+  profileCardMeta: $('#characterCardMeta'),
+  profileCardNote: $('#characterCardNote'),
+  presetCard: $('#openToneSettings'),
+  presetCardTitle: $('#presetCardTitle'),
+  presetCardMeta: $('#presetCardMeta'),
+  presetCardNote: $('#presetCardNote'),
   profileDialog: $('#profileDialog'),
+  profileSelect: $('#profileSelect'),
+  profileSummary: $('#profileSummary'),
   logoutButton: $('#logoutButton'),
 };
 
@@ -95,6 +130,9 @@ let uiState = loadUiState();
 let workspaceState = loadWorkspaceState();
 let controlsDirty = false;
 let busyDirection = '';
+let toneSidebarOpen = false;
+let activeTooltipControl = '';
+let messageTimer = null;
 
 function currentDirection() {
   return workspaceState.activeDirection;
@@ -112,6 +150,10 @@ function currentProfile() {
   return profiles.find((profile) => profile.id === selectedProfileId) || profiles[0];
 }
 
+function isMobileLayout() {
+  return window.matchMedia(MOBILE_LAYOUT_QUERY).matches;
+}
+
 function persistLocalState() {
   saveProfiles(profiles);
   saveSelectedProfileId(selectedProfileId);
@@ -122,37 +164,41 @@ function persistWorkspace() {
   saveWorkspaceState(workspaceState);
 }
 
-function persistAll() {
-  persistLocalState();
-  persistWorkspace();
-}
-
 function escapeHtml(value) {
   const div = document.createElement('div');
   div.textContent = String(value ?? '');
   return div.innerHTML;
 }
 
+function syncBodyLock() {
+  const anyDialogOpen = elements.profileDialog.open || elements.settingsDialog.open;
+  document.body.classList.toggle('body-locked', anyDialogOpen || (toneSidebarOpen && isMobileLayout()));
+}
+
 function showMessage(text, type = 'info') {
+  clearTimeout(messageTimer);
   elements.messageBox.textContent = text;
   elements.messageBox.classList.remove('hidden', 'error');
   if (type === 'error') elements.messageBox.classList.add('error');
+  messageTimer = setTimeout(() => {
+    elements.messageBox.classList.add('hidden');
+  }, 2600);
 }
 
 function hideMessage() {
+  clearTimeout(messageTimer);
   elements.messageBox.classList.add('hidden');
 }
 
 function updateSourceMeta() {
   const config = DIRECTION_CONFIG[currentDirection()];
-  elements.charCount.textContent = elements.sourceText.value.length;
-  elements.sourceHint.innerHTML = `<span id="charCount">${elements.sourceText.value.length}</span>/4000 • ${config.sourceHint}`;
-  elements.charCount = elements.sourceHint.querySelector('#charCount');
+  elements.charCount.textContent = String(elements.sourceText.value.length);
+  elements.sourceHint.textContent = config.sourceHint;
 }
 
 function updatePresetDirtyMarker() {
   const shouldShow = currentDirection() === 'ru-en' && controlsDirty;
-  elements.presetDirty?.classList.toggle('hidden', !shouldShow);
+  elements.presetDirty.classList.toggle('hidden', !shouldShow);
 }
 
 function setConnection(state, text) {
@@ -166,7 +212,7 @@ function updateResultActions() {
   const hasResult = Boolean(currentWorkspace().resultText);
   const busy = busyDirection === direction;
 
-  document.getElementById('copyResult').disabled = busy || !hasResult;
+  $('#copyResult').disabled = busy || !hasResult;
   for (const button of elements.ruEnActions) {
     const enabled = direction === 'ru-en';
     button.classList.toggle('hidden', !enabled);
@@ -177,8 +223,8 @@ function updateResultActions() {
 function updateTranslateButton(action = 'translate') {
   const config = DIRECTION_CONFIG[currentDirection()];
   const busy = busyDirection === currentDirection();
-  const label = action === 'alternative' ? config.alternativeBusyLabel : config.translateBusyLabel;
-  elements.translate.textContent = busy ? label : config.translateLabel;
+  const busyLabel = action === 'alternative' ? config.alternativeBusyLabel : config.translateBusyLabel;
+  elements.translate.textContent = busy ? busyLabel : config.translateLabel;
   elements.translate.disabled = busy;
 }
 
@@ -200,15 +246,45 @@ function syncModelSelect(defaultModel = '') {
   elements.model.value = workspace.model;
 }
 
-function renderProfileSummary() {
+function updateSettingsSummary() {
+  elements.settingsProfileCount.textContent = `Профилей: ${profiles.length}`;
+}
+
+function renderDialogProfileSummary(profile) {
+  if (!profile) return;
+
+  elements.profileSummary.innerHTML = [
+    `<strong>${escapeHtml(profile.name)}, ${profile.age}</strong>`,
+    `${escapeHtml(profile.region || 'United States')} • ${escapeHtml(profile.genderVoice || 'natural adult voice')}`,
+    escapeHtml(profile.personality || 'Характер не указан'),
+    `<small>${profile.examples?.length || 0} примеров речи</small>`,
+  ].join('<br>');
+}
+
+function renderCharacterCard() {
   const profile = currentProfile();
   if (!profile) return;
 
-  elements.profileSummary.innerHTML = `
-    <strong>${escapeHtml(profile.name)}, ${profile.age}</strong><br>
-    ${escapeHtml(profile.region || 'США')} • ${escapeHtml(profile.genderVoice || 'естественный голос')}<br>
-    ${escapeHtml(profile.personality || 'Характер не указан')}<br>
-    <small>${profile.examples?.length || 0} примеров речи</small>`;
+  const isRuEn = currentDirection() === 'ru-en';
+  elements.profileCardTitle.textContent = `${profile.name}, ${profile.age}`;
+  elements.profileCardMeta.textContent = `${profile.region || 'United States'} • ${profile.genderVoice || 'natural adult voice'}`;
+  elements.profileCardNote.textContent = isRuEn ? DIRECTION_CONFIG['ru-en'].cardNote : DIRECTION_CONFIG['en-ru'].cardNote;
+  elements.profileCard.classList.toggle('is-muted', !isRuEn);
+}
+
+function summarizeControls(controls) {
+  return `Сленг ${controls.slang} • Флирт ${controls.flirt} • Прямота ${controls.directness}`;
+}
+
+function renderPresetCard() {
+  const preset = styleConfig.presets[uiState.presetId] || Object.values(styleConfig.presets)[0];
+  const controls = readControls();
+  const isRuEn = currentDirection() === 'ru-en';
+
+  elements.presetCardTitle.textContent = preset?.label || 'Preset';
+  elements.presetCardMeta.textContent = summarizeControls(controls);
+  elements.presetCardNote.textContent = isRuEn ? DIRECTION_CONFIG['ru-en'].presetNote : DIRECTION_CONFIG['en-ru'].presetNote;
+  elements.presetCard.classList.toggle('is-muted', !isRuEn);
 }
 
 function renderProfiles() {
@@ -224,7 +300,9 @@ function renderProfiles() {
     elements.profileSelect.append(option);
   }
 
-  renderProfileSummary();
+  updateSettingsSummary();
+  renderCharacterCard();
+  renderDialogProfileSummary(currentProfile());
   persistLocalState();
 }
 
@@ -235,15 +313,19 @@ function applyPreset(presetId, resetDirty = true) {
   applyPresetToInputs(styleConfig, presetId);
   uiState.presetId = presetId;
   controlsDirty = false;
+
   if (resetDirty) {
     ruEnWorkspace().previousOutputs = [];
     ruEnWorkspace().lastRequest = null;
     persistWorkspace();
   }
+
   updateControlOutputs(styleConfig);
   persistLocalState();
   elements.preset.value = uiState.presetId;
   updatePresetDirtyMarker();
+  renderPresetCard();
+  if (activeTooltipControl) showToneTooltip(activeTooltipControl);
 }
 
 function renderPresets() {
@@ -263,10 +345,6 @@ function renderPresets() {
   applyPreset(uiState.presetId, false);
 }
 
-function currentControls() {
-  return readControls();
-}
-
 function renderTabs() {
   const direction = currentDirection();
   for (const tab of elements.directionTabs) {
@@ -278,18 +356,38 @@ function renderTabs() {
   }
 
   for (const [key, panel] of Object.entries(elements.modePanels)) {
-    panel.classList.toggle('hidden', key !== direction);
+    if (!panel) continue;
+    panel.hidden = key !== direction;
   }
+}
+
+function updateToneAvailability() {
+  const isRuEn = currentDirection() === 'ru-en';
+  elements.toneSidebar.classList.toggle('is-disabled', !isRuEn);
+  elements.toneSidebarNote.textContent = DIRECTION_CONFIG[currentDirection()].toneNote;
+  elements.preset.disabled = !isRuEn;
+  elements.priority.disabled = !isRuEn;
+
+  for (const id of CONTROL_IDS) {
+    const input = document.getElementById(id);
+    if (input) input.disabled = !isRuEn;
+  }
+
+  for (const button of elements.helpButtons) {
+    button.disabled = !isRuEn;
+    button.setAttribute('aria-expanded', 'false');
+  }
+
+  if (!isRuEn) hideToneTooltip();
 }
 
 function renderWorkspace() {
   const direction = currentDirection();
   const workspace = currentWorkspace();
   const config = DIRECTION_CONFIG[direction];
-  const isRuEn = direction === 'ru-en';
 
   renderTabs();
-  for (const element of elements.ruEnOnly) element.classList.toggle('hidden', !isRuEn);
+  updateToneAvailability();
 
   elements.sourceLabel.textContent = config.sourceLabel;
   elements.sourceText.placeholder = config.sourcePlaceholder;
@@ -307,6 +405,8 @@ function renderWorkspace() {
   updateClearButton();
   updateResultActions();
   updatePresetDirtyMarker();
+  renderCharacterCard();
+  renderPresetCard();
 }
 
 function setActiveDirection(direction) {
@@ -330,7 +430,7 @@ function collectRequest(action = 'translate') {
     action,
     presetId: elements.preset.value,
     priority: elements.priority.value,
-    controls: currentControls(),
+    controls: readControls(),
     previous: {
       output: workspace.resultText || '',
       outputs: workspace.previousOutputs || [],
@@ -391,7 +491,7 @@ async function checkConnection(showSuccess = false) {
     const health = await apiFetch('/api/health');
     if (!health.qwen) throw new Error(health.upstreamError || 'Qwen API не отвечает.');
 
-    setConnection('ok', 'Сессия активна');
+    setConnection('ok', 'Подключено');
     if (showSuccess) showMessage('Gateway и Qwen доступны.');
     await loadModels();
     return true;
@@ -439,11 +539,13 @@ async function translate(action = 'translate') {
       workspace.lastRequest = { controls: request.controls };
       controlsDirty = false;
       updateControlOutputs(styleConfig);
+      renderPresetCard();
     }
 
     persistWorkspace();
     renderWorkspace();
-    setConnection('ok', 'Сессия активна');
+    setConnection('ok', 'Подключено');
+    if (toneSidebarOpen && isMobileLayout()) closeToneSidebar();
   } catch (error) {
     showMessage(error.message, 'error');
     setConnection('error', error.status === 401 ? 'Нужна привязка' : 'Ошибка');
@@ -460,8 +562,8 @@ function clearSourceText() {
   renderWorkspace();
 }
 
-function openProfileDialog(profile = null, duplicate = false) {
-  const source = profile ? structuredClone(profile) : createBlankProfile();
+function populateProfileForm(profile, { duplicate = false } = {}) {
+  const source = structuredClone(profile || createBlankProfile());
   if (duplicate) {
     source.id = crypto.randomUUID();
     source.name = `${source.name} - копия`;
@@ -485,7 +587,18 @@ function openProfileDialog(profile = null, duplicate = false) {
   $('#profileLength').value = source.messageLength || 'short';
   $('#profileLowercase').checked = Boolean(source.lowercase);
   $('#deleteProfile').classList.toggle('hidden', !profile || duplicate);
-  elements.profileDialog.showModal();
+
+  if (profile && elements.profileSelect.querySelector(`option[value="${profile.id}"]`)) {
+    elements.profileSelect.value = profile.id;
+  }
+
+  renderDialogProfileSummary(source);
+}
+
+function openProfileDialog(profile = currentProfile(), duplicate = false) {
+  populateProfileForm(profile, { duplicate });
+  if (!elements.profileDialog.open) elements.profileDialog.showModal();
+  syncBodyLock();
 }
 
 function saveProfileFromForm(event) {
@@ -525,6 +638,7 @@ function saveProfileFromForm(event) {
   selectedProfileId = profile.id;
   renderProfiles();
   elements.profileDialog.close();
+  syncBodyLock();
 }
 
 function deleteCurrentProfile() {
@@ -539,6 +653,7 @@ function deleteCurrentProfile() {
   selectedProfileId = profiles[0].id;
   renderProfiles();
   elements.profileDialog.close();
+  syncBodyLock();
 }
 
 function exportProfiles() {
@@ -593,6 +708,140 @@ function handleTabKeydown(event) {
   }
 }
 
+function openSettingsDialog() {
+  elements.settingsDialog.showModal();
+  syncBodyLock();
+}
+
+function openToneSettings() {
+  if (isMobileLayout()) {
+    toneSidebarOpen = true;
+    elements.toneSidebar.classList.add('open');
+    elements.toneSidebarBackdrop.classList.remove('hidden');
+    syncBodyLock();
+    return;
+  }
+
+  elements.toneSidebar.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  elements.preset.focus();
+}
+
+function closeToneSidebar() {
+  toneSidebarOpen = false;
+  elements.toneSidebar.classList.remove('open');
+  elements.toneSidebarBackdrop.classList.add('hidden');
+  syncBodyLock();
+}
+
+function tooltipMarkup(controlId) {
+  const control = styleConfig.controls[controlId];
+  if (!control) return '';
+  const input = document.getElementById(controlId);
+  const activeLevel = levelFor(styleConfig, controlId, input?.value);
+
+  const levels = control.levels
+    .map((level) => `
+      <li class="${Number(level.value) === Number(input?.value || 0) ? 'active' : ''}">
+        <span>${level.value}</span>
+        <strong>${escapeHtml(level.name || '')}</strong>
+      </li>
+    `)
+    .join('');
+
+  return `
+    <p class="tooltip-title">${escapeHtml(control.label)}</p>
+    <p class="tooltip-copy">${escapeHtml(activeLevel.tooltip || '')}</p>
+    <ul class="tooltip-levels">${levels}</ul>
+  `;
+}
+
+function positionToneTooltip(button) {
+  const sidebarRect = elements.toneSidebar.getBoundingClientRect();
+  const buttonRect = button.getBoundingClientRect();
+
+  if (isMobileLayout()) return;
+
+  const width = Math.min(TOOLTIP_WIDTH, sidebarRect.width - 32);
+  const tooltip = elements.toneTooltip;
+  const maxLeft = Math.max(16, sidebarRect.width - width - 16);
+  const left = Math.max(16, Math.min(buttonRect.right - sidebarRect.left - width, maxLeft));
+  let top = buttonRect.bottom - sidebarRect.top + 12;
+
+  tooltip.style.width = `${width}px`;
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+
+  const tooltipRect = tooltip.getBoundingClientRect();
+  if (tooltipRect.bottom > window.innerHeight - 16) {
+    top = Math.max(16, buttonRect.top - sidebarRect.top - tooltipRect.height - 12);
+    tooltip.style.top = `${top}px`;
+  }
+}
+
+function showToneTooltip(controlId) {
+  if (currentDirection() !== 'ru-en') return;
+
+  const button = document.querySelector(`[data-control-help="${controlId}"]`);
+  if (!button) return;
+
+  activeTooltipControl = controlId;
+  elements.toneTooltip.innerHTML = tooltipMarkup(controlId);
+  elements.toneTooltip.classList.remove('hidden');
+  elements.toneTooltip.setAttribute('aria-hidden', 'false');
+
+  for (const helpButton of elements.helpButtons) {
+    helpButton.setAttribute('aria-expanded', helpButton === button ? 'true' : 'false');
+  }
+
+  requestAnimationFrame(() => positionToneTooltip(button));
+}
+
+function hideToneTooltip() {
+  activeTooltipControl = '';
+  elements.toneTooltip.classList.add('hidden');
+  elements.toneTooltip.setAttribute('aria-hidden', 'true');
+  for (const helpButton of elements.helpButtons) {
+    helpButton.setAttribute('aria-expanded', 'false');
+  }
+}
+
+function bindTooltipEvents() {
+  for (const button of elements.helpButtons) {
+    const controlId = button.dataset.controlHelp;
+    if (!controlId) continue;
+
+    button.addEventListener('mouseenter', () => {
+      if (!isMobileLayout()) showToneTooltip(controlId);
+    });
+    button.addEventListener('mouseleave', () => {
+      if (!isMobileLayout()) hideToneTooltip();
+    });
+    button.addEventListener('focus', () => showToneTooltip(controlId));
+    button.addEventListener('blur', () => {
+      if (!isMobileLayout()) hideToneTooltip();
+    });
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (activeTooltipControl === controlId) hideToneTooltip();
+      else showToneTooltip(controlId);
+    });
+  }
+
+  document.addEventListener('pointerdown', (event) => {
+    if (!activeTooltipControl) return;
+    if (elements.toneTooltip.contains(event.target)) return;
+    if (event.target.closest('[data-control-help]')) return;
+    hideToneTooltip();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      hideToneTooltip();
+      if (toneSidebarOpen && isMobileLayout()) closeToneSidebar();
+    }
+  });
+}
+
 function bindEvents() {
   elements.directionTabs.forEach((tab) => {
     tab.addEventListener('click', () => setActiveDirection(tab.dataset.direction));
@@ -601,8 +850,10 @@ function bindEvents() {
 
   elements.profileSelect.addEventListener('change', () => {
     selectedProfileId = elements.profileSelect.value;
-    renderProfileSummary();
-    persistLocalState();
+    renderProfiles();
+    if (elements.profileDialog.open) {
+      populateProfileForm(currentProfile(), { duplicate: false });
+    }
   });
 
   elements.preset.addEventListener('change', () => applyPreset(elements.preset.value));
@@ -621,14 +872,20 @@ function bindEvents() {
     updateClearButton();
   });
   elements.sourceText.addEventListener('keydown', (event) => {
-    if (event.ctrlKey && event.key === 'Enter') translate('translate');
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') translate('translate');
   });
+
   elements.clearSource.addEventListener('click', clearSourceText);
   elements.translate.addEventListener('click', () => translate('translate'));
+  elements.connectionButton.addEventListener('click', () => checkConnection(true));
+  elements.openSettingsButton.addEventListener('click', openSettingsDialog);
+  elements.profileCard.addEventListener('click', () => openProfileDialog(currentProfile()));
+  elements.presetCard.addEventListener('click', openToneSettings);
+  elements.toneSidebarClose.addEventListener('click', closeToneSidebar);
+  elements.toneSidebarBackdrop.addEventListener('click', closeToneSidebar);
   elements.logoutButton.addEventListener('click', logout);
-  document.getElementById('connectionButton').addEventListener('click', () => checkConnection(true));
-  document.getElementById('newProfile').addEventListener('click', () => openProfileDialog());
-  document.getElementById('editProfile').addEventListener('click', () => openProfileDialog(currentProfile()));
+
+  document.getElementById('newProfile').addEventListener('click', () => openProfileDialog(null));
   document.getElementById('duplicateProfile').addEventListener('click', () => openProfileDialog(currentProfile(), true));
   document.getElementById('profileForm').addEventListener('submit', saveProfileFromForm);
   document.getElementById('deleteProfile').addEventListener('click', deleteCurrentProfile);
@@ -655,15 +912,27 @@ function bindEvents() {
       controlsDirty = true;
       updateControlOutputs(styleConfig);
       updatePresetDirtyMarker();
-    });
-    document.querySelector(`[data-control-help="${id}"]`)?.addEventListener('click', (event) => {
-      event.currentTarget.classList.toggle('active');
+      renderPresetCard();
+      if (activeTooltipControl === id) showToneTooltip(id);
     });
   }
 
   document.querySelectorAll('.dialog-close').forEach((button) => {
-    button.addEventListener('click', () => button.closest('dialog').close());
+    button.addEventListener('click', () => {
+      button.closest('dialog')?.close();
+      syncBodyLock();
+    });
   });
+
+  elements.profileDialog.addEventListener('close', syncBodyLock);
+  elements.settingsDialog.addEventListener('close', syncBodyLock);
+
+  window.addEventListener('resize', () => {
+    if (!isMobileLayout()) closeToneSidebar();
+    if (activeTooltipControl) showToneTooltip(activeTooltipControl);
+  });
+
+  bindTooltipEvents();
 }
 
 async function init() {

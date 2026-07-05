@@ -53,21 +53,23 @@ test('app static page is served with CSP headers and tab UI', async () => {
     },
   });
   const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/app/`);
+    const html = await response.text();
 
-  const response = await fetch(`http://127.0.0.1:${port}/app/`);
-  const html = await response.text();
-
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get('content-security-policy') || '', /default-src 'self'/);
-  assert.match(html, /Self-hosted/i);
-  assert.match(html, /role="tablist"/);
-  assert.match(html, /role="tab"/);
-  assert.match(html, /role="tabpanel"/);
-  assert.match(html, /data-direction="ru-en"/);
-  assert.match(html, /data-direction="en-ru"/);
-  assert.doesNotMatch(html, /букваль|дослов|слово в слово/i);
-
-  await close(server);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-security-policy') || '', /default-src 'self'/);
+    assert.match(html, /TextLikeUS/);
+    assert.match(html, /Translate the vibe, not just the words\./);
+    assert.match(html, /role="tablist"/);
+    assert.match(html, /role="tab"/);
+    assert.match(html, /role="tabpanel"/);
+    assert.match(html, /data-direction="ru-en"/);
+    assert.match(html, /data-direction="en-ru"/);
+    assert.doesNotMatch(html, /букваль|дослов|слово в слово/i);
+  } finally {
+    await close(server);
+  }
 });
 
 test('public docs page contains no gateway client secrets', () => {
