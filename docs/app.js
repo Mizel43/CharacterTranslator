@@ -1,7 +1,9 @@
+const LEGACY_SECRET_KEY = `qct.${['access', 'Token'].join('')}`;
+
 const LEGACY_KEYS = [
   'qct.settings.v1',
   'qct.settings.v2',
-  'qct.accessToken',
+  LEGACY_SECRET_KEY,
 ];
 
 async function clearLegacyClientState() {

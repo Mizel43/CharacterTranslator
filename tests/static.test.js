@@ -67,6 +67,7 @@ test('public docs page contains no gateway client secrets', () => {
   const docsApp = fs.readFileSync(path.join(ROOT, 'docs', 'app.js'), 'utf8');
   const docsHtml = fs.readFileSync(path.join(ROOT, 'docs', 'index.html'), 'utf8');
 
+  assert.doesNotMatch(docsApp, /accessToken/i);
   assert.doesNotMatch(docsApp, /Authorization/i);
   assert.doesNotMatch(docsApp, /fetch\(['"`]\/api\//i);
   assert.doesNotMatch(docsHtml, /accessToken/i);
